@@ -4,59 +4,60 @@ import { imageAssets } from '../../constant/Options'
 import Colors from '../../constant/Colors'
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-export default function CourseList({courseList}) {
-  const router=useRouter();
+export default function CourseList({ courseList, heading = "Courses", enroll = false }) {
+  const router = useRouter();
   return (
     <View style={{
-        marginTop: 15
+      marginTop: 15
     }}>
       <Text style={{
         fontFamily: 'outfit-bold',
         fontSize: 25
-      }}>Courses</Text>
+      }}>{heading}</Text>
 
-      <FlatList 
-            data={courseList}
-            horizontal={true}
-            showsHorizontalScrollIndicator={false}
-            renderItem={({item,index})=>(
-                <TouchableOpacity     
-                  onPress={()=>router.push({
-                    pathname: 'courseView',
-                    params:{
-                      courseParams:JSON.stringify(item)
-                    }
-                  })}
-                  key={index} style={styles.courseContainer}>
-                    <Image source={imageAssets[item.banner_image]} 
-                        style={{
-                            width: '100%',
-                            height: 150,
-                            borderRadius:15
-                        }}
-                    />
-                    <Text style={{
-                      fontFamily:'outfit-bold',
-                      fontSize: 18,
-                      marginTop: 10
-                    }}>
-                        {item?.courseTitle}
-                    </Text>
-                   <View style={{
-                    display:'flex',
-                    flexDirection:'row',
-                    gap: 5,
-                    alignItems:'center',
-                    marginTop:5
-                   }}>
-                   <Ionicons name="book-outline" size={24} color="black" />
-                    <Text style={{
-                      fontFamily:'outfit'
-                    }}>
-                       {item?.chapters?.length} Chapters </Text>
-                   </View>
-                </TouchableOpacity>
-            )}
+      <FlatList
+        data={courseList}
+        horizontal={true}
+        showsHorizontalScrollIndicator={false}
+        renderItem={({ item, index }) => (
+          <TouchableOpacity
+            onPress={() => router.push({
+              pathname: '/courseView/' + item?.docId,
+              params: {
+                courseParams: JSON.stringify(item),
+                enroll: enroll
+              }
+            })}
+            key={index} style={styles.courseContainer}>
+            <Image source={imageAssets[item.banner_image]}
+              style={{
+                width: '100%',
+                height: 150,
+                borderRadius: 15
+              }}
+            />
+            <Text style={{
+              fontFamily: 'outfit-bold',
+              fontSize: 18,
+              marginTop: 10
+            }}>
+              {item?.courseTitle}
+            </Text>
+            <View style={{
+              display: 'flex',
+              flexDirection: 'row',
+              gap: 5,
+              alignItems: 'center',
+              marginTop: 5
+            }}>
+              <Ionicons name="book-outline" size={24} color="black" />
+              <Text style={{
+                fontFamily: 'outfit'
+              }}>
+                {item?.chapters?.length} Chapters </Text>
+            </View>
+          </TouchableOpacity>
+        )}
       />
     </View>
   )
@@ -64,10 +65,10 @@ export default function CourseList({courseList}) {
 
 const styles = StyleSheet.create({
   courseContainer: {
-      padding: 10,
-      backgroundColor: Colors.BG_GRAY,
-      margin: 6,
-      borderRadius: 15,
-      width: 260
+    padding: 10,
+    backgroundColor: Colors.WHITE,
+    margin: 6,
+    borderRadius: 15,
+    width: 260
   }
 })

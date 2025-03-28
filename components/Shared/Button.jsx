@@ -18,7 +18,8 @@ export default function Button({text,type="fill",onPress,loading}) {
     {!loading?  <Text style={{
         textAlign: 'center',
         fontSize: 18,
-        color:type=='fill'?Colors.WHITE:Colors.PRIMARY
+        color:type=='fill'?Colors.WHITE:Colors.PRIMARY,
+        fontFamily: 'outfit-bold'
       }}> {text} </Text> : 
       <ActivityIndicator size={'small'} color={type=='fill'?Colors.WHITE:Colors.PRIMARY} />
       }

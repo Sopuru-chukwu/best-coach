@@ -42,6 +42,7 @@ export default function SignUp() {
     setUserDetail(data);
 
     //navigate to new screen
+    // router.replace('/auth/signin')
   }
   return (
     <View style={{
@@ -112,4 +113,4 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderRadius: 8
   }
-})
+}) 

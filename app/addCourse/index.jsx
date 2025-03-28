@@ -13,7 +13,7 @@ export default function AddCourse() {
     const [loading, setLoading] = useState(false);
     const { userDetail } = useContext(UserDetailContext);
     const [userInput, setUserInput] = useState('');
-    const [topics, setTopics] = useState([]);
+    const [topics, setTopics] = useState([]); // Ensuring topics is always an array
     const [selectedTopics, setSelectedTopics] = useState([]);
     const router = useRouter();
 
@@ -21,26 +21,44 @@ export default function AddCourse() {
         if (!userInput.trim()) {
             console.log("Error: User input is empty");
             return;
-        }
-        
+        } 
+    
         setLoading(true);
-        const PROMPT = userInput + Prompt.IDEA;
         try {
+            const PROMPT = userInput + Prompt.IDEA;
             const aiResp = await GenerateTopicsAIModel.sendMessage(PROMPT);
-            const textResponse = await aiResp.response.text();
-            console.log("AI Response:", textResponse);
-            
-            if (!textResponse) {
+            const responseText = await aiResp.response.text();
+    
+            console.log("AI Response:", responseText);
+    
+            if (!responseText) {
                 throw new Error("AI response is empty");
             }
-            
-            const topicIdea = JSON.parse(textResponse);
-            setTopics(Array.isArray(topicIdea) ? topicIdea : []);
+    
+            let topicIdea;
+            try {
+                topicIdea = JSON.parse(responseText);
+            } catch (jsonError) {
+                throw new Error("Failed to parse AI response");
+            }
+    
+            // Handle cases where AI returns an array instead of an object
+            const extractedTopics = Array.isArray(topicIdea) 
+                ? topicIdea // Directly use array
+                : topicIdea?.course_titles || []; // Use object property if available
+    
+            if (extractedTopics.length === 0) {
+                throw new Error("Invalid topic format from AI");
+            }
+    
+            setTopics(extractedTopics);
         } catch (error) {
-            console.log("Error generating topics:", error);
+            console.error("Error generating topics:", error);
+            setTopics([]); // Ensure topics is at least an empty array
         }
         setLoading(false);
     };
+    
 
     const onTopicSelect = (topic) => {
         setSelectedTopics(prev => prev.includes(topic) ? prev.filter(item => item !== topic) : [...prev, topic]);
@@ -72,10 +90,12 @@ export default function AddCourse() {
 
             for (const course of courses) {
                 try {
-                    await setDoc(doc(db, 'Courses', Date.now().toString()), {
+                    const docId = Date.now().toString(); // Ensuring unique ID
+                    await setDoc(doc(db, 'Courses', docId), {
                         ...course,
                         createdOn: new Date(),
-                        createdBy: userDetail?.email,
+                        createdBy: userDetail?.email ?? '',
+                        docId: docId
                     });
                     console.log("Course saved successfully:", course);
                 } catch (error) {
@@ -107,7 +127,7 @@ export default function AddCourse() {
 
             <Button text={'Generate Topic'} type='outline' onPress={onGenerateTopic} loading={loading} />
 
-            {topics.length > 0 && (
+            {Array.isArray(topics) && topics.length > 0 && (
                 <View style={styles.topicContainer}>
                     <Text style={styles.selectTopicText}>Select all topics you want to add in the course:</Text>
                     <View style={styles.topicList}>
@@ -182,4 +202,4 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.PRIMARY,
         color: Colors.WHITE,
     },
-});
+});  

@@ -1,13 +1,15 @@
-import { View, Text, Image } from 'react-native'
+import { View, Text, Image, TouchableOpacity } from 'react-native'
 import React from 'react'
 import { FlatList } from 'react-native'
 import { PraticeOption } from '../../constant/Options'
 import Colors from '../../constant/Colors'
+import { useRouter } from 'expo-router'
 
 export default function PracticeSection() {
+  const router = useRouter();
   return (
     <View style={{
-        marginTop: 10
+      marginTop: 10
     }}>
       <Text style={{
         fontFamily: 'outfit-bold',
@@ -16,29 +18,29 @@ export default function PracticeSection() {
 
       <View>
         <FlatList
-            data={PraticeOption}
-            numColumns={3}
-            renderItem={({item,index})=>(
-                <View key={index} style={{
-                    flex: 1,
-                    margin: 5,
-                    aspectRatio: 1
-                }}>
-                    <Image source={item?.image} style={{
-                        width: '100%',
-                        height: '100%',
-                        maxHeight: 160,
-                        borderRadius: 15
-                    }} />
-                    <Text style={{
-                        position: 'absolute',
-                        padding: 15,
-                        fontSize: 15,
-                        fontFamily: 'outfit',
-                        color: Colors.WHITE
-                    }}> {item?.name} </Text>
-                </View>
-             )}
+          data={PraticeOption}
+          numColumns={3}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity onPress={() => router.push('/practice/' + item.name)} key={index} style={{
+              flex: 1,
+              margin: 5,
+              aspectRatio: 1
+            }}>
+              <Image source={item?.image} style={{
+                width: '100%',
+                height: '100%',
+                maxHeight: 160,
+                borderRadius: 15
+              }} />
+              <Text style={{
+                position: 'absolute',
+                padding: 15,
+                fontSize: 15,
+                fontFamily: 'outfit',
+                color: Colors.WHITE
+              }}> {item?.name} </Text>
+            </TouchableOpacity>
+          )}
         />
       </View>
     </View>
