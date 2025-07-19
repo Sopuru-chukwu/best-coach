@@ -1,143 +1,172 @@
-import { View, Text, Image, StyleSheet, FlatList } from 'react-native'
-import React, { useEffect, useState } from 'react'
+import { View, Text, Image, StyleSheet, ScrollView, ImageBackground } from 'react-native';
+import React, { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '../../constant/Colors';
 import Button from '../../components/Shared/Button';
 
 export default function QuizSummary() {
-    const { quizResultParam } = useLocalSearchParams();
-    const quizResult = JSON.parse(quizResultParam);
-    const [correctAns, setCorrectAns] = useState(0);
-    const [totalQuestion, setTotalQuestion] = useState(0);
-    const router = useRouter();
+  const { quizResultParam } = useLocalSearchParams();
+  const quizResult = JSON.parse(quizResultParam);
+  const [correctAns, setCorrectAns] = useState(0);
+  const [totalQuestion, setTotalQuestion] = useState(0);
+  const router = useRouter();
 
-    useEffect(() => {
-        console.log(quizResult);
-        quizResult && CalculateResult();
-    }, [quizResult])
-    const CalculateResult = () => {
-        if (quizResult !== undefined) {
-            const correctAns_ = Object.entries(quizResult)?.filter(([Key, value]) =>
-                value?.isCorrect == true)
-            console.log(correctAns);
-            const totalQues_ = Object.keys(quizResult).length;
+  useEffect(() => {
+    quizResult && CalculateResult();
+  }, [quizResult]);
 
-            setCorrectAns(correctAns_.length);
-            setTotalQuestion(totalQues_);
-        }
+  const CalculateResult = () => {
+    if (quizResult !== undefined) {
+      const correctAns_ = Object.entries(quizResult)?.filter(
+        ([key, value]) => value?.isCorrect === true
+      );
+      setCorrectAns(correctAns_.length);
+      setTotalQuestion(Object.keys(quizResult).length);
     }
+  };
 
-    const GetPercMark = () => {
-        return ((correctAns / totalQuestion) * 100).toFixed(0)
-    }
-    return (
-        <FlatList
-            data={[]}
-            ListHeaderComponent={
-                <View>
-                    <Image source={require('./../../assets/images/wave.png')} style={{
-                        width: '100%',
-                        height: 700
-                    }} />
-                    <View style={{
-                        position: 'absolute',
-                        width: '100%',
-                        padding: 35
-                    }}>
-                        <Text style={{
-                            textAlign: 'center',
-                            fontFamily: 'outfit-bold',
-                            fontSize: 30,
-                            color: Colors.WHITE
-                        }}>Quiz Summary</Text>
-                        <View style={{
-                            backgroundColor: Colors.WHITE,
-                            padding: 20,
-                            borderRadius: 20,
-                            marginTop: 30,
-                            display: 'flex',
-                            alignItems: 'center'
-                        }}>
-                            <Image source={require('./../../assets/images/trophy.png')} style={{
-                                width: 100,
-                                height: 100,
-                                marginTop: -60
-                            }} />
-                            <Text style={{
-                                fontSize: 20,
-                                fontFamily: 'outfit-bold'
-                            }}>{GetPercMark() > 60 ? 'Congratulations!' : 'Try Again!'}</Text>
-                            <Text style={{
-                                fontFamily: 'outfit',
-                                color: Colors.GRAY,
-                                fontSize: 17
-                            }}>You gave {GetPercMark()}% Correct answer</Text>
+  const GetPercMark = () => {
+    return ((correctAns / totalQuestion) * 100).toFixed(0);
+  };
 
-                            <View style={{
-                                display: 'flex',
-                                flexDirection: 'row',
-                                justifyContent: 'space-between',
-                                marginTop: 10
-                            }}>
-                                <View style={styles.resultTextContainer}>
-                                    <Text style={styles.resultText}>Q {totalQuestion}</Text>
-                                </View>
-                                <View style={styles.resultTextContainer}>
-                                    <Text style={styles.resultText}>✅ {correctAns}</Text>
-                                </View>
-                                <View style={styles.resultTextContainer}>
-                                    <Text style={styles.resultText}>❌ {totalQuestion - correctAns}</Text>
-                                </View>
-                            </View>
-                        </View>
-                        <Button text={'Back To Home'} onPress={() => router.replace('/(tabs)/home')} />
-                        <View style={{
-                            marginTop: 25,
-                            flex: 1
-                        }}>
-                            <Text style={{
-                                fontFamily: 'outfit-bold',
-                                fontSize: 25
-                            }}>Summary</Text>
-                            <FlatList
-                                data={Object.entries(quizResult)}
-                                renderItem={({ item, index }) => {
-                                    const quizItem = item[1]; // Access the actual quiz
-                                    return (
-                                        <View style={{
-                                            padding: 15,
-                                            borderWidth: 1,
-                                            marginTop: 5,
-                                            borderRadius: 15,
-                                            backgroundColor: quizItem?.isCorrect == true ? Colors.LIGTH_GREEN : Colors.LIGHT_RED,
-                                            borderColor: quizItem?.isCorrect == true ? Colors.GREEN : Colors.RED
-                                        }}>
-                                            <Text style={{
-                                                fontFamily: 'outfit',
-                                                fontSize: 20
-                                            }}>{quizItem.question}</Text>
-                                            <Text style={{
-                                                fontFamily: 'outfit',
-                                                fontSize: 15
-                                            }}>Ans: {quizItem?.correctAns}</Text>
-                                        </View>)
-                                }}
-                            />
-                        </View>
-                    </View>
-                </View >
-            } />
-    )
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ImageBackground
+        source={require('./../../assets/images/wave.png')}
+        style={styles.headerBackground}
+        resizeMode="cover"
+      >
+        <Text style={styles.headerText}>Quiz Summary</Text>
+      </ImageBackground>
+
+      <View style={styles.contentContainer}>
+        <View style={styles.resultCard}>
+          <Image
+            source={require('./../../assets/images/trophy.png')}
+            style={styles.trophy}
+          />
+          <Text style={styles.resultTitle}>
+            {GetPercMark() > 60 ? 'Congratulations!' : 'Try Again!'}
+          </Text>
+          <Text style={styles.resultSubtitle}>
+            You gave {GetPercMark()}% Correct answer
+          </Text>
+
+          <View style={styles.statsRow}>
+            <View style={styles.resultTextContainer}>
+              <Text style={styles.resultText}>Q {totalQuestion}</Text>
+            </View>
+            <View style={styles.resultTextContainer}>
+              <Text style={styles.resultText}>✅ {correctAns}</Text>
+            </View>
+            <View style={styles.resultTextContainer}>
+              <Text style={styles.resultText}>❌ {totalQuestion - correctAns}</Text>
+            </View>
+          </View>
+        </View>
+
+        <Button text={'Back To Home'} onPress={() => router.replace('/(tabs)/home')} />
+
+        <View style={styles.summaryContainer}>
+          <Text style={styles.summaryHeader}>Summary</Text>
+
+          {Object.entries(quizResult).map(([key, quizItem], index) => (
+            <View
+              key={index}
+              style={{
+                padding: 15,
+                borderWidth: 1,
+                marginTop: 5,
+                borderRadius: 15,
+                backgroundColor:
+                  quizItem?.isCorrect == true ? Colors.LIGTH_GREEN : Colors.LIGHT_RED,
+                borderColor: quizItem?.isCorrect == true ? Colors.GREEN : Colors.RED,
+              }}
+            >
+              <Text style={styles.questionText}>{quizItem.question}</Text>
+              <Text style={styles.answerText}>Ans: {quizItem?.correctAns}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </ScrollView>
+  );
 }
 
 const styles = StyleSheet.create({
-    resultTextContainer: {
-        padding: 15,
-        backgroundColor: Colors.WHITE,
-        elevation: 1
-    },
-    resultText: {
-        fontFamily: 'outfit',
-        fontSize: 20
-    }
-})
+  scrollContainer: {
+    paddingBottom: 50,
+    backgroundColor: Colors.WHITE,
+  },
+  headerBackground: {
+    width: '100%',
+    height: 250,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 70
+  },
+  headerText: {
+    fontFamily: 'outfit-bold',
+    fontSize: 30,
+    color: Colors.WHITE,
+    textAlign: 'center',
+  },
+  contentContainer: {
+    padding: 25,
+  },
+  resultCard: {
+    backgroundColor: Colors.WHITE,
+    padding: 20,
+    borderRadius: 20,
+    marginTop: -60,
+    alignItems: 'center',
+    shadowColor: '#000',
+    elevation: 3,
+  },
+  trophy: {
+    width: 100,
+    height: 100,
+    marginTop: -60,
+  },
+  resultTitle: {
+    fontSize: 20,
+    fontFamily: 'outfit-bold',
+  },
+  resultSubtitle: {
+    fontFamily: 'outfit',
+    color: Colors.GRAY,
+    fontSize: 17,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    gap: 10,
+  },
+  resultTextContainer: {
+    padding: 15,
+    backgroundColor: Colors.WHITE,
+    elevation: 1,
+    borderRadius: 10,
+  },
+  resultText: {
+    fontFamily: 'outfit',
+    fontSize: 20,
+  },
+  summaryContainer: {
+    marginTop: 25,
+  },
+  summaryHeader: {
+    fontFamily: 'outfit-bold',
+    fontSize: 25,
+  },
+  questionText: {
+    fontFamily: 'outfit',
+    fontSize: 20,
+  },
+  answerText: {
+    fontFamily: 'outfit',
+    fontSize: 15,
+    marginTop: 5,
+  },
+});

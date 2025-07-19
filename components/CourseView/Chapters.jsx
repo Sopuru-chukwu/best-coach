@@ -6,22 +6,18 @@ import { useRouter } from 'expo-router';
 
 export default function Chapters({ course }) {
   const router = useRouter();
+  const completedChapters = Array.isArray(course?.completedChapter)
+    ? course.completedChapter
+    : [];
 
-  console.log("🔹 Course Data:", course);
-
-  // Ensure `completedChapter` is always an array
-  const completedChapters = Array.isArray(course?.completedChapter) ? course.completedChapter : [];
-
-  console.log("✅ Completed Chapters:", completedChapters);
-
-  const isChapterCompleted = (index) => completedChapters.includes(parseInt(index)); // Ensure index is a number
+  const isChapterCompleted = (index) => completedChapters.includes(parseInt(index));
 
   return (
     <View style={{ padding: 20 }}>
       <Text style={{ fontFamily: 'outfit-bold', fontSize: 20 }}>Chapters</Text>
 
       <FlatList
-        data={course?.chapters || []} // Fallback to empty array
+        data={course?.chapters || []}
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item, index }) => (
           <TouchableOpacity
@@ -30,9 +26,9 @@ export default function Chapters({ course }) {
                 pathname: '/chapterView',
                 params: {
                   chapterParams: JSON.stringify(item),
-                  docId: course?.docId,
-                  chapterIndex: index
-                }
+                  docId: course?.docId ?? '',
+                  chapterIndex: index,
+                },
               });
             }}
             style={styles.chapterItem}

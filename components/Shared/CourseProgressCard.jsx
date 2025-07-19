@@ -17,7 +17,8 @@ export default function CourseProgressCard({ item, width = 280 }) {
             padding: 15,
             backgroundColor: Colors.WHITE,
             borderRadius: 15,
-            width: width
+            width: width,
+            elevation: 3,
         }}>
             <View style={{
                 display: 'flex',

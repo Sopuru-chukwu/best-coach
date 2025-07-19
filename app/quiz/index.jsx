@@ -1,4 +1,4 @@
-import { View, Text, Image, Dimensions } from 'react-native'
+import { View, Text, Image, Dimensions, ScrollView } from 'react-native'
 import React, { useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Pressable } from 'react-native';
@@ -60,7 +60,7 @@ export default function Quiz() {
         //redirect user to quiz summary
     }
     return (
-        <View>
+        <ScrollView>
             <Image source={require('./../../assets/images/wave.png')} style={{
                 height: 800,
                 width: '100%'
@@ -133,6 +133,6 @@ export default function Quiz() {
                     loading={loading}
                     onPress={() => onQuizFinish()} />}
             </View>
-        </View>
+        </ScrollView>
     )
 }

@@ -1,4 +1,4 @@
-import { View, Text, Image, StyleSheet } from 'react-native'
+import { View, Text, Image, StyleSheet, ScrollView } from 'react-native'
 import React, { useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Colors from './../../constant/Colors'
@@ -21,7 +21,7 @@ export default function QuestionAnswer() {
     }
   }
   return (
-    <View>
+    <ScrollView>
       <Image source={require('./../../assets/images/wave.png')} style={{
         height: 800,
         width: '100%'
@@ -80,7 +80,7 @@ export default function QuestionAnswer() {
           )}
         />
       </View>
-    </View>
+    </ScrollView>
   )
 }
 

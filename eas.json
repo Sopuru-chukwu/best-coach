@@ -1,0 +1,39 @@
+{
+  "cli": {
+    "version": ">= 16.2.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API_KEY": "@AIzaSyCcNQtYQjmy_DqL_kKvm9RoVGLsgZe-x3o"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API_KEY": "@AIzaSyCcNQtYQjmy_DqL_kKvm9RoVGLsgZe-x3o"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API_KEY": "@AIzaSyCcNQtYQjmy_DqL_kKvm9RoVGLsgZe-x3o"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

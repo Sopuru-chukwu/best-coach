@@ -1,6 +1,6 @@
-import { View, FlatList, ActivityIndicator } from "react-native";
+import { View, Text, FlatList, ActivityIndicator } from "react-native";
 import React, { useEffect, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import Intro from "../../../components/CourseView/Intro";
 import Chapters from "../../../components/CourseView/Chapters";
 import Colors from "../../../constant/Colors";
@@ -8,19 +8,19 @@ import { db } from "../../../config/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 
 export default function CourseView() {
-  const { courseParams, courseId, enroll, refresh } = useLocalSearchParams(); // Added `refresh` to track updates
+  const { courseParams, courseId, enroll, refresh } = useLocalSearchParams();
   const [course, setCourse] = useState(null);
-  const [loading, setLoading] = useState(true); // Loading state
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    console.log("🔄 Fetching course data...");
     if (!courseParams) {
       GetCourseById();
     } else {
       try {
-        const parsedCourse = JSON.parse(courseParams);
-        console.log("Parsed Course:", parsedCourse);
-        setCourse(parsedCourse);
+        const parsed = JSON.parse(courseParams);
+        const normalized = { docId: courseId ?? parsed.docId, ...parsed };
+        setCourse(normalized);
         setLoading(false);
       } catch (error) {
         console.error("Error parsing courseParams:", error);
@@ -28,17 +28,15 @@ export default function CourseView() {
         setLoading(false);
       }
     }
-  }, [courseId, refresh]); // Ensure refresh triggers a re-fetch
+  }, [courseId, refresh]);
 
   const GetCourseById = async () => {
     try {
-      console.log("Fetching course with ID:", courseId);
-      const docRef = await getDoc(doc(db, "Courses", courseId));
-      if (docRef.exists()) {
-        console.log("Fetched Course:", docRef.data());
-        setCourse(docRef.data());
+      const snap = await getDoc(doc(db, "Courses", courseId));
+      if (snap.exists()) {
+        const data = snap.data();
+        setCourse({ docId: courseId, ...data });
       } else {
-        console.error("No such course found!");
         setCourse(null);
       }
     } catch (error) {
@@ -47,6 +45,20 @@ export default function CourseView() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const goHome = () => router.replace("/(tabs)/home");
+
+  const openChapter = (chapterIndex = 0) => {
+    if (!course) return;
+    router.push({
+      pathname: "/chapterView",
+      params: {
+        chapterParams: JSON.stringify(course.chapters?.[chapterIndex] ?? {}),
+        docId: course.docId,
+        chapterIndex,
+      },
+    });
   };
 
   if (loading) {
@@ -59,11 +71,16 @@ export default function CourseView() {
 
   return (
     <FlatList
-      data={[]} // Empty since we're using ListHeaderComponent
+      data={[]}
       ListHeaderComponent={
         <View style={{ flex: 1, backgroundColor: Colors.WHITE }}>
-          <Intro course={course} enroll={enroll} />
-          {Array.isArray(course.chapters) ? (
+          <Intro
+            course={course}
+            enroll={enroll}
+            goHome={goHome}
+            startOrContinue={openChapter}
+          />
+          {Array.isArray(course?.chapters) ? (
             <Chapters course={course} />
           ) : (
             <Text>No Chapters Available</Text>
