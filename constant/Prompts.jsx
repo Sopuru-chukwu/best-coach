@@ -34,12 +34,14 @@ export function buildSyllabusPrompt({
   style = "Hands-on & Examples",
   sourceNotes = "",
   hasAttachment = false,
+  diagnosticSummary = "",
 }) {
   const trimmedNotes = sourceNotes.trim().slice(0, 4000);
   return dedent`
     Selected topics: ${topics.join(", ")}
     Learner level: ${level}
     Preferred teaching style: ${style}
+    ${diagnosticSummary ? `\nSkill diagnostic result (tailor the syllabus to skip what they already mastered and focus on their gaps):\n${diagnosticSummary}` : ""}
     ${trimmedNotes ? `\nReference study notes provided by the learner (base the course directly on this material where relevant):\n"""\n${trimmedNotes}\n"""` : ""}
     ${hasAttachment ? "\nAn image or PDF study document is attached. Anchor the chapters, quizzes, flashcards, and Q&A directly to the material in the attachment." : ""}
 
@@ -137,6 +139,8 @@ export function buildChapterLessonPrompt({
     - "keyTakeaway": crisp 1-2 sentence summary worth remembering
     - "checkQuestion": 1 short active-recall or applied question to test understanding of this section
     - "checkAnswer": clear, concise answer explaining the reasoning
+    - "visualFlow": optional array of 3-5 short ordered step labels (e.g. ["Input", "Transform", "Output"]) illustrating the concept flow when helpful (or [])
+    - "comparisonTable": optional object { "headers": ["Concept", "Pros", "When to Use"], "rows": [["...", "...", "..."]] } when comparing 2-3 approaches/ideas (or null)
 
     Output valid JSON ONLY matching:
     {
@@ -150,7 +154,9 @@ export function buildChapterLessonPrompt({
           "commonMistake": "...",
           "keyTakeaway": "...",
           "checkQuestion": "...",
-          "checkAnswer": "..."
+          "checkAnswer": "...",
+          "visualFlow": ["Step 1", "Step 2", "Step 3"],
+          "comparisonTable": null
         }
       ]
     }

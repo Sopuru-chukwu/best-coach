@@ -11,7 +11,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserDetailContext } from '../../context/UserDetailContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -23,6 +23,12 @@ import { ProfileMenu } from '../../constant/Options';
 import { LEARNER_LEVELS, TEACHING_STYLES } from '../../constant/Prompts';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../../components/Shared/Button';
+import {
+  loadReminderSettings,
+  REMINDER_PRESETS,
+  scheduleDailyReminder,
+} from '../../config/reminders';
+import { tapSelection } from '../../config/haptics';
 
 const THEME_MODES = [
   { key: 'system', label: 'System', icon: 'phone-portrait-outline' },
@@ -45,6 +51,21 @@ export default function Profile() {
     userDetail?.preferredStyle || TEACHING_STYLES[0]
   );
   const [savingPrefs, setSavingPrefs] = useState(false);
+  const [reminder, setReminder] = useState({ enabled: false, label: 'Off' });
+
+  useEffect(() => {
+    loadReminderSettings().then(setReminder);
+  }, []);
+
+  const handleSelectReminder = async (preset) => {
+    tapSelection();
+    try {
+      const updated = await scheduleDailyReminder(preset);
+      setReminder(updated);
+    } catch (err) {
+      Alert.alert('Reminder Error', err?.message || 'Could not update study reminder.');
+    }
+  };
 
   const openPrefs = () => {
     setNameInput(userDetail?.name || '');
@@ -104,6 +125,8 @@ export default function Profile() {
   };
 
   const streakDays = Number(userDetail?.streakDays) || 0;
+  const streakFreezes =
+    typeof userDetail?.streakFreezes === 'number' ? userDetail.streakFreezes : 1;
 
   return (
     <View
@@ -137,6 +160,9 @@ export default function Profile() {
                 🔥 {streakDays}d streak
               </Text>
               <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
+                ❄️ {streakFreezes} freeze{streakFreezes === 1 ? '' : 's'}
+              </Text>
+              <Text style={[styles.badge, { color: colors.green, backgroundColor: colors.greenSoft }]}>
                 {userDetail?.preferredLevel || LEARNER_LEVELS[0]}
               </Text>
             </View>
@@ -180,6 +206,37 @@ export default function Profile() {
                         ]}
                       >
                         {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={[styles.themeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.themeLabel, { color: colors.text }]}>
+                Daily Study Reminder
+              </Text>
+              <View style={styles.chipRow}>
+                {REMINDER_PRESETS.map((preset) => {
+                  const active = (reminder?.label || 'Off') === preset.label;
+                  return (
+                    <Pressable
+                      key={preset.label}
+                      onPress={() => handleSelectReminder(preset)}
+                    >
+                      <Text
+                        style={[
+                          styles.chip,
+                          { borderColor: colors.border, color: colors.text, backgroundColor: colors.cardAlt },
+                          active && {
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary,
+                            color: colors.white,
+                          },
+                        ]}
+                      >
+                        {preset.label}
                       </Text>
                     </Pressable>
                   );

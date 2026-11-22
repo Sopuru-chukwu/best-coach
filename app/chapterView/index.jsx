@@ -42,6 +42,10 @@ import {
   speakText,
   stopSpeaking,
 } from '../../config/voiceCoach';
+import {
+  ComparisonTableCard,
+  ConceptFlowCard,
+} from '../../components/ChapterView/VisualDiagramCard';
 
 const firstParam = (val) => (Array.isArray(val) ? val[0] : val);
 
@@ -557,6 +561,9 @@ export default function ChapterView() {
                     <FormattedText text={currentItem.explain} fontSize={fontSize} />
                   </View>
                 )}
+
+                <ConceptFlowCard steps={currentItem.visualFlow} />
+                <ComparisonTableCard table={currentItem.comparisonTable} />
 
                 {!!currentItem.code && (
                   <View style={[styles.codeBlock, { backgroundColor: colors.codeBg }]}>

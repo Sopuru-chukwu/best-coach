@@ -6,6 +6,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { arrayUnion, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 import AskCoachModal from '../../components/ChapterView/AskCoachModal';
+import { useTheme } from '../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function QuestionAnswer() {
   const { courseParams } = useLocalSearchParams();
@@ -21,6 +23,8 @@ export default function QuestionAnswer() {
   const qaList = Array.isArray(course?.qa) ? course.qa : [];
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [coachTopic, setCoachTopic] = useState(null);
+  const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const OnQuestionSelect = (index) => {
@@ -36,8 +40,8 @@ export default function QuestionAnswer() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: Colors.WHITE }}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
     >
       <Image
         source={require('./../../assets/images/wave.png')}
@@ -45,6 +49,7 @@ export default function QuestionAnswer() {
           position: 'absolute',
           height: 800,
           width: '100%',
+          opacity: isDark ? 0.55 : 1,
         }}
       />
 
@@ -52,7 +57,7 @@ export default function QuestionAnswer() {
         style={{
           width: '100%',
           padding: 20,
-          paddingTop: 50,
+          paddingTop: insets.top + 14,
         }}
       >
         <View
@@ -64,13 +69,13 @@ export default function QuestionAnswer() {
           }}
         >
           <Pressable onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={Colors.WHITE} />
+            <Ionicons name="arrow-back" size={24} color={colors.white} />
           </Pressable>
           <Text
             style={{
               fontFamily: 'outfit-bold',
               fontSize: 28,
-              color: Colors.WHITE,
+              color: colors.white,
             }}
           >
             Questions & Answers
@@ -79,7 +84,7 @@ export default function QuestionAnswer() {
         <Text
           style={{
             fontFamily: 'outfit',
-            color: Colors.WHITE,
+            color: colors.white,
             fontSize: 20,
             marginTop: 5,
           }}
@@ -90,19 +95,22 @@ export default function QuestionAnswer() {
         {qaList.map((item, index) => (
           <Pressable
             key={index}
-            style={styles.card}
+            style={[
+              styles.card,
+              { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+            ]}
             onPress={() => OnQuestionSelect(index)}
           >
-            <Text style={{ fontFamily: 'outfit-bold', fontSize: 19 }}>
+            <Text style={{ fontFamily: 'outfit-bold', fontSize: 19, color: colors.text }}>
               {item?.question}
             </Text>
             {selectedQuestion === index && (
-              <View style={{ borderTopWidth: 0.5, borderTopColor: '#e5e7eb', marginTop: 12, paddingTop: 10 }}>
+              <View style={{ borderTopWidth: 0.6, borderTopColor: colors.border, marginTop: 12, paddingTop: 10 }}>
                 <Text
                   style={{
                     fontFamily: 'outfit',
                     fontSize: 16,
-                    color: '#15803d',
+                    color: colors.green,
                     lineHeight: 23,
                   }}
                 >
@@ -110,7 +118,7 @@ export default function QuestionAnswer() {
                 </Text>
 
                 <Pressable
-                  style={styles.askCoachBtn}
+                  style={[styles.askCoachBtn, { backgroundColor: colors.primarySoft }]}
                   onPress={() =>
                     setCoachTopic({
                       topic: item?.question,
@@ -118,8 +126,10 @@ export default function QuestionAnswer() {
                     })
                   }
                 >
-                  <Ionicons name="sparkles" size={16} color={Colors.PRIMARY} />
-                  <Text style={styles.askCoachText}>Ask Coach to explain deeper</Text>
+                  <Ionicons name="sparkles" size={16} color={colors.primary} />
+                  <Text style={[styles.askCoachText, { color: colors.primary }]}>
+                    Ask Coach to explain deeper
+                  </Text>
                 </Pressable>
               </View>
             )}

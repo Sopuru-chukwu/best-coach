@@ -17,16 +17,37 @@ import React, { useCallback, useContext, useMemo, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  updateDoc,
+} from 'firebase/firestore';
 import { db } from './../../config/firebaseConfig';
 import { CourseCategory, getBannerImage } from './../../constant/Options';
 import { UserDetailContext } from './../../context/UserDetailContext';
 import { useTheme } from './../../context/ThemeContext';
 import Button from './../../components/Shared/Button';
 import { CourseCardSkeleton } from './../../components/Shared/SkeletonLoader';
-import { tapSelection } from './../../config/haptics';
+import { tapLight, tapSelection } from './../../config/haptics';
 
 const ALL_CATEGORIES = ['All', ...CourseCategory];
+const SORT_MODES = [
+  { key: 'trending', label: 'Trending' },
+  { key: 'newest', label: 'Newest' },
+  { key: 'enrolled', label: 'Most Enrolled' },
+];
+
+const getCreatedMillis = (createdOn) => {
+  if (!createdOn) return 0;
+  if (typeof createdOn?.toMillis === 'function') return createdOn.toMillis();
+  if (typeof createdOn?.seconds === 'number') return createdOn.seconds * 1000;
+  const parsed = new Date(createdOn).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
 
 export default function Explore() {
   const { userDetail } = useContext(UserDetailContext);
@@ -39,6 +60,7 @@ export default function Explore() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortBy, setSortBy] = useState('trending');
   const [joinOpen, setJoinOpen] = useState(false);
   const [courseCode, setCourseCode] = useState('');
   const [joining, setJoining] = useState(false);
@@ -114,7 +136,7 @@ export default function Explore() {
     const q = searchQuery.trim().toLowerCase();
     const seen = new Set();
 
-    return allCourses.filter((course) => {
+    const matched = allCourses.filter((course) => {
       const catMatch =
         selectedCategory === 'All' || course.category === selectedCategory;
       if (!catMatch) return false;
@@ -135,7 +157,51 @@ export default function Explore() {
       seen.add(titleKey);
       return true;
     });
-  }, [allCourses, selectedCategory, searchQuery, userEmail, ownedTitles]);
+
+    return matched.sort((a, b) => {
+      const aLikes = Array.isArray(a.likedBy) ? a.likedBy.length : 0;
+      const bLikes = Array.isArray(b.likedBy) ? b.likedBy.length : 0;
+      const aEnroll = Number(a.enrollCount) || 0;
+      const bEnroll = Number(b.enrollCount) || 0;
+
+      if (sortBy === 'newest') {
+        return getCreatedMillis(b.createdOn) - getCreatedMillis(a.createdOn);
+      }
+      if (sortBy === 'enrolled') {
+        return bEnroll - aEnroll || bLikes - aLikes;
+      }
+      // trending: weighted likes + enrollments + recency tiebreaker
+      const aScore = aLikes * 2 + aEnroll;
+      const bScore = bLikes * 2 + bEnroll;
+      return bScore - aScore || getCreatedMillis(b.createdOn) - getCreatedMillis(a.createdOn);
+    });
+  }, [allCourses, selectedCategory, searchQuery, userEmail, ownedTitles, sortBy]);
+
+  const handleToggleLike = async (course) => {
+    if (!userEmail || !course?.docId) return;
+    tapLight();
+    const likedList = Array.isArray(course.likedBy) ? course.likedBy : [];
+    const alreadyLiked = likedList.includes(userEmail);
+
+    // Optimistic update
+    setAllCourses((prev) =>
+      prev.map((c) => {
+        if (c.docId !== course.docId) return c;
+        const nextLikedBy = alreadyLiked
+          ? likedList.filter((e) => e !== userEmail)
+          : [...likedList, userEmail];
+        return { ...c, likedBy: nextLikedBy };
+      })
+    );
+
+    try {
+      await updateDoc(doc(db, 'Courses', course.docId), {
+        likedBy: alreadyLiked ? arrayRemove(userEmail) : arrayUnion(userEmail),
+      });
+    } catch {
+      // ignore if rules restrict non-owner updates
+    }
+  };
 
   const openCourse = (course) => {
     const isMine = (course.createdBy || '').toLowerCase() === userEmail;
@@ -234,6 +300,37 @@ export default function Explore() {
                 );
               })}
             </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {SORT_MODES.map((m) => {
+                const active = sortBy === m.key;
+                return (
+                  <Pressable
+                    key={m.key}
+                    onPress={() => {
+                      tapSelection();
+                      setSortBy(m.key);
+                    }}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 99,
+                      backgroundColor: active ? colors.primarySoft : colors.cardAlt,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: active ? 'outfit-bold' : 'outfit',
+                        fontSize: 12,
+                        color: active ? colors.primary : colors.textMuted,
+                      }}
+                    >
+                      {m.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         }
         ListEmptyComponent={
@@ -328,6 +425,41 @@ export default function Explore() {
                   <Text style={[styles.chapterCount, { color: colors.primary }]}>
                     {item.chapters?.length ?? 0} Chapters
                   </Text>
+                  {Number(item.enrollCount) > 0 && (
+                    <Text style={{ fontFamily: 'outfit', fontSize: 13, color: colors.textMuted, marginLeft: 8 }}>
+                      • {item.enrollCount} enrolled
+                    </Text>
+                  )}
+                  <Pressable
+                    onPress={() => handleToggleLike(item)}
+                    style={{
+                      marginLeft: 'auto',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 99,
+                      backgroundColor: colors.cardAlt,
+                    }}
+                  >
+                    <Ionicons
+                      name={
+                        Array.isArray(item.likedBy) && item.likedBy.includes(userEmail)
+                          ? 'heart'
+                          : 'heart-outline'
+                      }
+                      size={16}
+                      color={
+                        Array.isArray(item.likedBy) && item.likedBy.includes(userEmail)
+                          ? colors.red
+                          : colors.textMuted
+                      }
+                    />
+                    <Text style={{ fontFamily: 'outfit-bold', fontSize: 12, color: colors.text }}>
+                      {Array.isArray(item.likedBy) ? item.likedBy.length : 0}
+                    </Text>
+                  </Pressable>
                 </View>
               </View>
             </TouchableOpacity>

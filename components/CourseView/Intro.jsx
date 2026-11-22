@@ -6,7 +6,7 @@ import Colors from '../../constant/Colors';
 import Button from './../../components/Shared/Button';
 import { useRouter } from 'expo-router';
 import { UserDetailContext } from './../../context/UserDetailContext';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, increment, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -105,6 +105,11 @@ export default function Intro({ course, enroll, goHome, startOrContinue }) {
         completedChapter: [],
       };
       await setDoc(doc(db, 'Courses', docId), data);
+      if (course?.docId) {
+        updateDoc(doc(db, 'Courses', course.docId), {
+          enrollCount: increment(1),
+        }).catch(() => {});
+      }
       router.push({
         pathname: '/courseView/' + docId,
         params: {
@@ -201,11 +206,28 @@ export default function Intro({ course, enroll, goHome, startOrContinue }) {
         )}
 
         {!isEnrollMode && (
-          <Button
-            text="1-Page Cheat Sheet"
-            type="outline"
-            onPress={() => setCheatSheetOpen(true)}
-          />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button
+                text="Cheat Sheet"
+                type="outline"
+                onPress={() => setCheatSheetOpen(true)}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                text="Exam & Feynman"
+                type="outline"
+                onPress={() => {
+                  tapLight();
+                  router.push({
+                    pathname: '/exam',
+                    params: { courseParams: JSON.stringify(course) },
+                  });
+                }}
+              />
+            </View>
+          </View>
         )}
       </View>
 

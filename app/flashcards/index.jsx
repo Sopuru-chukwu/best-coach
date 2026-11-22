@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { speakText, stopSpeaking } from '../../config/voiceCoach';
 import { UserDetailContext } from '../../context/UserDetailContext';
 import { recordStudyActivity } from '../../config/learningStats';
+import { makeCardKey, recordCardReview } from '../../config/spacedRepetition';
 
 const SCREEN_WIDTH = Dimensions.get('screen').width;
 const CARD_WIDTH = SCREEN_WIDTH - 50;
@@ -151,6 +152,13 @@ export default function Flashcards() {
   };
 
   const markCard = async (isMastered) => {
+    const activeCard = flashcards[currentPage];
+    if (activeCard) {
+      recordCardReview(
+        makeCardKey(course?.docId || course?.courseTitle, currentPage, activeCard.front),
+        isMastered ? 'good' : 'again'
+      );
+    }
     if (isMastered) {
       notifySuccess();
       recordStudyActivity(userDetail, setUserDetail);

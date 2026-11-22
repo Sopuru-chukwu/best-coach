@@ -12,10 +12,12 @@ import {
 import React, { useContext, useState } from 'react';
 import Colors from './../../constant/Colors';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './../../config/firebaseConfig';
 import { UserDetailContext } from './../../context/UserDetailContext';
+import { useTheme } from './../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SignUp() {
   const router = useRouter();
@@ -24,6 +26,8 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { setUserDetail } = useContext(UserDetailContext);
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const SaveUser = async (user, normalizedEmail, trimmedName) => {
     const data = {
@@ -54,7 +58,8 @@ export default function SignUp() {
     try {
       const resp = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       await SaveUser(resp.user, normalizedEmail, trimmedName);
-      router.replace('/(tabs)/home');
+      await sendEmailVerification(resp.user);
+      router.replace({ pathname: '/auth/verifyEmail', params: { justSent: 'true' } });
     } catch (e) {
       console.error('Sign up error:', e);
       Alert.alert('Sign Up Failed', e?.message || 'Unable to create account.');
@@ -68,23 +73,26 @@ export default function SignUp() {
       style={{
         display: 'flex',
         alignItems: 'center',
-        paddingTop: 100,
+        paddingTop: insets.top + 40,
         flex: 1,
-        backgroundColor: Colors.WHITE,
-        padding: 25,
+        backgroundColor: colors.background,
+        paddingHorizontal: 25,
       }}
     >
       <Image
         source={require('./../../assets/images/logo.png')}
         style={{
-          width: 180,
-          height: 180,
+          width: 150,
+          height: 150,
+          borderRadius: 28,
         }}
       />
       <Text
         style={{
           fontSize: 30,
           fontFamily: 'outfit-bold',
+          color: colors.text,
+          marginTop: 12,
         }}
       >
         Create New Account
@@ -92,13 +100,21 @@ export default function SignUp() {
 
       <TextInput
         placeholder="Fullname"
-        style={styles.textInput}
+        placeholderTextColor={colors.textMuted}
+        style={[
+          styles.textInput,
+          { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
+        ]}
         value={fullName}
         onChangeText={setFullName}
       />
       <TextInput
         placeholder="Email"
-        style={styles.textInput}
+        placeholderTextColor={colors.textMuted}
+        style={[
+          styles.textInput,
+          { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
+        ]}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -106,8 +122,12 @@ export default function SignUp() {
       />
       <TextInput
         placeholder="Password"
+        placeholderTextColor={colors.textMuted}
         secureTextEntry={true}
-        style={styles.textInput}
+        style={[
+          styles.textInput,
+          { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
+        ]}
         value={password}
         onChangeText={setPassword}
       />
@@ -115,10 +135,10 @@ export default function SignUp() {
       <TouchableOpacity
         style={{
           padding: 15,
-          backgroundColor: Colors.PRIMARY,
+          backgroundColor: colors.primary,
           width: '100%',
           marginTop: 25,
-          borderRadius: 10,
+          borderRadius: 12,
         }}
         onPress={CreateNewAccount}
         disabled={loading}
@@ -126,16 +146,16 @@ export default function SignUp() {
         {!loading ? (
           <Text
             style={{
-              fontFamily: 'outfit',
-              fontSize: 20,
-              color: Colors.WHITE,
+              fontFamily: 'outfit-bold',
+              fontSize: 18,
+              color: colors.white,
               textAlign: 'center',
             }}
           >
             Create Account
           </Text>
         ) : (
-          <ActivityIndicator size="large" color={Colors.WHITE} />
+          <ActivityIndicator size="small" color={colors.white} />
         )}
       </TouchableOpacity>
 
@@ -147,11 +167,13 @@ export default function SignUp() {
           marginTop: 20,
         }}
       >
-        <Text style={{ fontFamily: 'outfit' }}>Already have an account?</Text>
+        <Text style={{ fontFamily: 'outfit', color: colors.textMuted }}>
+          Already have an account?
+        </Text>
         <Pressable onPress={() => router.push('/auth/signin')}>
           <Text
             style={{
-              color: Colors.PRIMARY,
+              color: colors.primary,
               fontFamily: 'outfit-bold',
             }}
           >

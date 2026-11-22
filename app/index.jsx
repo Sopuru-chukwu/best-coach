@@ -6,14 +6,22 @@ import { auth, db } from "./../config/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { useContext, useEffect } from "react";
 import { UserDetailContext } from "@/context/UserDetailContext";
+import { useTheme } from "@/context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Index() {
   const router = useRouter();
   const { setUserDetail } = useContext(UserDetailContext);
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        if (!user.emailVerified) {
+          router.replace("/auth/verifyEmail");
+          return;
+        }
         try {
           const email = user.email?.toLowerCase() ?? "";
           let userData = null;
@@ -49,16 +57,17 @@ export default function Index() {
   }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.WHITE }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Image
         source={require("./../assets/images/landing.png")}
-        style={{ width: "100%", height: 300, marginTop: 50 }}
+        style={{ width: "100%", height: 280, marginTop: insets.top + 16 }}
         resizeMode="contain"
       />
       <View
         style={{
           padding: 25,
-          backgroundColor: Colors.PRIMARY,
+          paddingBottom: insets.bottom + 24,
+          backgroundColor: colors.primary,
           flex: 1,
           borderTopLeftRadius: 35,
           borderTopRightRadius: 35,
@@ -68,7 +77,7 @@ export default function Index() {
           style={{
             fontSize: 30,
             textAlign: "center",
-            color: Colors.WHITE,
+            color: colors.white,
             fontFamily: "outfit-bold",
           }}
         >
@@ -79,7 +88,7 @@ export default function Index() {
           style={{
             fontSize: 20,
             marginTop: 20,
-            color: Colors.WHITE,
+            color: colors.white,
             textAlign: "center",
             fontFamily: "outfit",
           }}
@@ -89,10 +98,10 @@ export default function Index() {
         </Text>
 
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, { backgroundColor: colors.white }]}
           onPress={() => router.push("/auth/signup")}
         >
-          <Text style={[styles.buttonText, { color: Colors.PRIMARY }]}>
+          <Text style={[styles.buttonText, { color: colors.primary }]}>
             Get Started
           </Text>
         </TouchableOpacity>
@@ -101,14 +110,14 @@ export default function Index() {
           style={[
             styles.button,
             {
-              backgroundColor: Colors.PRIMARY,
+              backgroundColor: colors.primary,
               borderWidth: 1,
-              borderColor: Colors.WHITE,
+              borderColor: colors.white,
             },
           ]}
           onPress={() => router.push("/auth/signin")}
         >
-          <Text style={[styles.buttonText, { color: Colors.WHITE }]}>
+          <Text style={[styles.buttonText, { color: colors.white }]}>
             Already have an Account?
           </Text>
         </TouchableOpacity>

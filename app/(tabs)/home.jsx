@@ -1,7 +1,8 @@
-import { View, FlatList, Image, Alert, ActivityIndicator } from "react-native";
+import { View, Text, FlatList, Image, Alert, TouchableOpacity } from "react-native";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import Header from "../../components/Home/header";
 import NoCourse from "../../components/Home/NoCourse";
 import { useTheme } from "../../context/ThemeContext";
@@ -14,6 +15,7 @@ import CourseProgress from "../../components/Home/CourseProgress";
 import { Snackbar } from "react-native-paper";
 import { loadCachedCourses, saveCachedCourses } from "../../config/offlineCache";
 import { CourseCardSkeleton } from "../../components/Shared/SkeletonLoader";
+import { getDueCards } from "../../config/spacedRepetition";
 
 const getCreatedMillis = (createdOn) => {
   if (!createdOn) return 0;
@@ -27,7 +29,9 @@ export default function Home() {
   const { userDetail } = useContext(UserDetailContext);
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [courseList, setCourseList] = useState([]);
+  const [dueCards, setDueCards] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -50,11 +54,13 @@ export default function Home() {
       courses.sort((a, b) => getCreatedMillis(b.createdOn) - getCreatedMillis(a.createdOn));
       setCourseList(courses);
       saveCachedCourses(userDetail.email, courses);
+      getDueCards(courses).then(setDueCards).catch(() => {});
     } catch (error) {
       console.error("Error fetching courses:", error);
       const cached = await loadCachedCourses(userDetail.email);
       if (cached.length > 0) {
         setCourseList(cached);
+        getDueCards(cached).then(setDueCards).catch(() => {});
       } else {
         Alert.alert("Offline", "Could not load your courses. Check your connection.");
       }
@@ -144,6 +150,51 @@ export default function Home() {
                 <NoCourse />
               ) : (
                 <View>
+                  {dueCards.length > 0 && (
+                    <TouchableOpacity
+                      activeOpacity={0.88}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/reviewQueue",
+                          params: { cardsParam: JSON.stringify(dueCards) },
+                        })
+                      }
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                        marginTop: 14,
+                        padding: 14,
+                        borderRadius: 16,
+                        backgroundColor: colors.card,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        elevation: 2,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 12,
+                          backgroundColor: colors.primarySoft,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Ionicons name="layers-outline" size={22} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: "outfit-bold", fontSize: 16, color: colors.text }}>
+                          Due for Review Today
+                        </Text>
+                        <Text style={{ fontFamily: "outfit", fontSize: 13, color: colors.textMuted }}>
+                          {dueCards.length} flashcard{dueCards.length === 1 ? "" : "s"} ready for spaced repetition
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+                    </TouchableOpacity>
+                  )}
                   <CourseProgress courseList={courseList} />
                   <PracticeSection />
                   <CourseList

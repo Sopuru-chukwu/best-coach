@@ -10,16 +10,14 @@ export function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function getYesterdayKey() {
+function getDateKeyDaysAgo(daysAgo) {
   const d = new Date();
-  d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - daysAgo);
   return getLocalDateKey(d);
 }
 
 function pruneOldActivity(log = {}) {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffKey = getLocalDateKey(cutoff);
+  const cutoffKey = getDateKeyDaysAgo(30);
   const cleaned = {};
   for (const [k, v] of Object.entries(log || {})) {
     if (k >= cutoffKey && typeof v === 'number' && v > 0) {
@@ -34,14 +32,25 @@ export async function recordStudyActivity(userDetail, setUserDetail) {
   if (!email) return;
 
   const today = getLocalDateKey();
-  const yesterday = getYesterdayKey();
+  const yesterday = getDateKeyDaysAgo(1);
+  const twoDaysAgo = getDateKeyDaysAgo(2);
   const prevDate = userDetail?.lastStudyDate || '';
   const prevStreak = Number(userDetail?.streakDays) || 0;
+  let streakFreezes =
+    typeof userDetail?.streakFreezes === 'number' ? userDetail.streakFreezes : 1;
 
   let nextStreak = prevStreak;
   if (prevDate === today) {
     nextStreak = Math.max(1, prevStreak);
   } else if (prevDate === yesterday) {
+    nextStreak = prevStreak + 1;
+    // Earn +1 streak freeze (max 3) every 3-day milestone
+    if (nextStreak % 3 === 0) {
+      streakFreezes = Math.min(3, streakFreezes + 1);
+    }
+  } else if (prevDate === twoDaysAgo && prevStreak > 0 && streakFreezes > 0) {
+    // Automatically consume 1 streak freeze to protect the streak after a single missed day
+    streakFreezes -= 1;
     nextStreak = prevStreak + 1;
   } else {
     nextStreak = 1;
@@ -55,6 +64,7 @@ export async function recordStudyActivity(userDetail, setUserDetail) {
 
   const updates = {
     streakDays: nextStreak,
+    streakFreezes,
     lastStudyDate: today,
     activityLog: nextLog,
   };

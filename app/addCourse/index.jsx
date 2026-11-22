@@ -32,6 +32,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { tapLight, tapSelection } from '../../config/haptics';
+import DiagnosticModal from '../../components/AddCourse/DiagnosticModal';
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -71,6 +72,8 @@ export default function AddCourse() {
   );
   const [topics, setTopics] = useState([]);
   const [selectedTopics, setSelectedTopics] = useState([]);
+  const [diagOpen, setDiagOpen] = useState(false);
+  const [diagnosticInfo, setDiagnosticInfo] = useState(null);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -232,6 +235,7 @@ export default function AddCourse() {
         style,
         sourceNotes,
         attachments: attachment ? [attachment] : [],
+        diagnosticSummary: diagnosticInfo?.summary || '',
       });
 
       let courses = [];
@@ -441,7 +445,37 @@ export default function AddCourse() {
         </View>
       )}
 
-      <Text style={[styles.sectionLabel, { color: colors.text }]}>Your Level</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
+        <Text style={[styles.sectionLabel, { color: colors.text, marginTop: 0, marginBottom: 0 }]}>
+          Your Level
+        </Text>
+        <Pressable
+          onPress={() => {
+            if (!userInput.trim()) {
+              Alert.alert('Enter a Topic First', 'Type a subject above to run a 3-question skill check.');
+              return;
+            }
+            tapLight();
+            setDiagOpen(true);
+          }}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 5,
+            backgroundColor: colors.primarySoft,
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 99,
+          }}
+        >
+          <Ionicons name="speedometer-outline" size={14} color={colors.primary} />
+          <Text style={{ fontFamily: 'outfit-bold', fontSize: 12, color: colors.primary }}>
+            {diagnosticInfo
+              ? `Placed: ${diagnosticInfo.level} (${diagnosticInfo.score}/${diagnosticInfo.total})`
+              : '3-Q Skill Check'}
+          </Text>
+        </Pressable>
+      </View>
       <View style={styles.chipRow}>
         {LEARNER_LEVELS.map((item) => (
           <Pressable
@@ -535,6 +569,16 @@ export default function AddCourse() {
           loading={courseLoading}
         />
       )}
+
+      <DiagnosticModal
+        visible={diagOpen}
+        onClose={() => setDiagOpen(false)}
+        topic={userInput.trim()}
+        onComplete={(result) => {
+          setDiagnosticInfo(result);
+          if (result?.level) setLevel(result.level);
+        }}
+      />
     </ScrollView>
   );
 }

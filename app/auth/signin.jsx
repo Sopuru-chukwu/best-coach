@@ -15,9 +15,15 @@ import React, { useContext, useState } from "react";
 import Colors from "../../constant/Colors";
 import { useRouter } from "expo-router";
 import { auth, db } from "../../config/firebaseConfig";
-import { sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
+import {
+  reload,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { UserDetailContext } from "./../../context/UserDetailContext";
+import { useTheme } from "./../../context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const showNotice = (title, message) => {
   if (Platform.OS === "android") {
@@ -32,6 +38,8 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { setUserDetail } = useContext(UserDetailContext);
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
   const getUserDetail = async (signedInUser, fallbackEmail) => {
@@ -67,6 +75,11 @@ export default function SignIn() {
     setLoading(true);
     try {
       const resp = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+      await reload(resp.user).catch(() => {});
+      if (!auth.currentUser?.emailVerified && !resp.user.emailVerified) {
+        router.replace("/auth/verifyEmail");
+        return;
+      }
       await getUserDetail(resp.user, trimmedEmail);
       router.replace("/(tabs)/home");
     } catch (e) {
@@ -115,23 +128,26 @@ export default function SignIn() {
       style={{
         display: "flex",
         alignItems: "center",
-        paddingTop: 100,
+        paddingTop: insets.top + 48,
         flex: 1,
-        backgroundColor: Colors.WHITE,
-        padding: 25,
+        backgroundColor: colors.background,
+        paddingHorizontal: 25,
       }}
     >
       <Image
         source={require("./../../assets/images/logo.png")}
         style={{
-          width: 180,
-          height: 180,
+          width: 150,
+          height: 150,
+          borderRadius: 28,
         }}
       />
       <Text
         style={{
           fontSize: 30,
           fontFamily: "outfit-bold",
+          color: colors.text,
+          marginTop: 12,
         }}
       >
         Welcome Back
@@ -139,7 +155,15 @@ export default function SignIn() {
 
       <TextInput
         placeholder="Email"
-        style={styles.textInput}
+        placeholderTextColor={colors.textMuted}
+        style={[
+          styles.textInput,
+          {
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+            color: colors.text,
+          },
+        ]}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -147,8 +171,16 @@ export default function SignIn() {
       />
       <TextInput
         placeholder="Password"
+        placeholderTextColor={colors.textMuted}
         secureTextEntry={true}
-        style={styles.textInput}
+        style={[
+          styles.textInput,
+          {
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+            color: colors.text,
+          },
+        ]}
         value={password}
         onChangeText={setPassword}
       />
@@ -157,7 +189,7 @@ export default function SignIn() {
         onPress={onForgotPassword}
         style={{ alignSelf: "flex-end", marginTop: 10 }}
       >
-        <Text style={{ color: Colors.PRIMARY, fontFamily: "outfit-bold", fontSize: 14 }}>
+        <Text style={{ color: colors.primary, fontFamily: "outfit-bold", fontSize: 14 }}>
           Forgot Password?
         </Text>
       </Pressable>
@@ -165,10 +197,10 @@ export default function SignIn() {
       <TouchableOpacity
         style={{
           padding: 15,
-          backgroundColor: Colors.PRIMARY,
+          backgroundColor: colors.primary,
           width: "100%",
-          marginTop: 25,
-          borderRadius: 10,
+          marginTop: 22,
+          borderRadius: 12,
         }}
         onPress={onSignIn}
         disabled={loading}
@@ -176,16 +208,16 @@ export default function SignIn() {
         {!loading ? (
           <Text
             style={{
-              fontFamily: "outfit",
-              fontSize: 20,
-              color: Colors.WHITE,
+              fontFamily: "outfit-bold",
+              fontSize: 18,
+              color: colors.white,
               textAlign: "center",
             }}
           >
             Sign In
           </Text>
         ) : (
-          <ActivityIndicator size={"large"} color={Colors.WHITE} />
+          <ActivityIndicator size={"small"} color={colors.white} />
         )}
       </TouchableOpacity>
 
@@ -197,11 +229,13 @@ export default function SignIn() {
           marginTop: 20,
         }}
       >
-        <Text style={{ fontFamily: "outfit" }}>Don't have an account?</Text>
+        <Text style={{ fontFamily: "outfit", color: colors.textMuted }}>
+          Don't have an account?
+        </Text>
         <Pressable onPress={() => router.push("/auth/signup")}>
           <Text
             style={{
-              color: Colors.PRIMARY,
+              color: colors.primary,
               fontFamily: "outfit-bold",
             }}
           >

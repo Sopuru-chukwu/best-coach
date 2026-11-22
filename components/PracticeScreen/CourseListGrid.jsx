@@ -3,6 +3,7 @@ import React from 'react';
 import Colors from '../../constant/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../../context/ThemeContext';
 
 function getPracticeStatus(course, optionName) {
   if (optionName === 'Quiz') {
@@ -39,6 +40,7 @@ function getPracticeStatus(course, optionName) {
 
 export default function CourseListGrid({ courseList, option }) {
   const router = useRouter();
+  const { colors } = useTheme();
 
   const onPress = (course) => {
     router.push({
@@ -59,13 +61,19 @@ export default function CourseListGrid({ courseList, option }) {
         renderItem={({ item }) => {
           const status = getPracticeStatus(item, option?.name);
           const badgeColor = status.completed
-            ? Colors.GREEN
+            ? colors.green
             : status.inProgress
-              ? Colors.PRIMARY
-              : '#cbd5e1';
+              ? colors.primary
+              : colors.border;
 
           return (
-            <TouchableOpacity onPress={() => onPress(item)} style={styles.card}>
+            <TouchableOpacity
+              onPress={() => onPress(item)}
+              style={[
+                styles.card,
+                { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+              ]}
+            >
               <Ionicons
                 name="checkmark-circle"
                 size={22}
@@ -77,13 +85,13 @@ export default function CourseListGrid({ courseList, option }) {
                 resizeMode="contain"
                 style={{ width: '100%', height: 64 }}
               />
-              <Text style={styles.title} numberOfLines={2}>
+              <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
                 {item?.courseTitle}
               </Text>
               <Text
                 style={[
                   styles.statusText,
-                  status.completed && { color: Colors.GREEN },
+                  { color: status.completed ? colors.green : colors.textMuted },
                 ]}
               >
                 {status.label}

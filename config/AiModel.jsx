@@ -319,6 +319,7 @@ export async function generateCourseSyllabus({
   style,
   sourceNotes = '',
   attachments = [],
+  diagnosticSummary = '',
 }) {
   const prompt = buildSyllabusPrompt({
     topics,
@@ -326,6 +327,7 @@ export async function generateCourseSyllabus({
     style,
     sourceNotes,
     hasAttachment: attachments.length > 0,
+    diagnosticSummary,
   });
   return callGemini({
     prompt,
@@ -570,6 +572,76 @@ export async function generateCourseCheatSheet({
     depth: 'fast',
     temperature: 0.5,
   });
+}
+
+export async function generateDiagnosticQuiz({ topic }) {
+  const prompt =
+    `Topic: ${topic}\n\n` +
+    'Create a quick 3-question skill diagnostic to place a learner as Beginner, Intermediate, or Advanced:\n' +
+    '- Question 1: Beginner level\n' +
+    '- Question 2: Intermediate level\n' +
+    '- Question 3: Advanced level\n' +
+    'Each question must have: "question", "options" (4 concise choices), "correctAns" (matching one option verbatim), and "difficulty" ("Beginner" | "Intermediate" | "Advanced").\n' +
+    'Output valid JSON ONLY: { "questions": [ { "question": "...", "options": ["..."], "correctAns": "...", "difficulty": "Beginner" } ] }';
+
+  const raw = await callGemini({
+    prompt,
+    maxOutputTokens: 1200,
+    timeoutMs: 30000,
+    jsonMode: true,
+    depth: 'fast',
+  });
+
+  const parsed = JSON.parse(extractJsonText(raw));
+  const questions = Array.isArray(parsed?.questions)
+    ? parsed.questions
+    : Array.isArray(parsed)
+      ? parsed
+      : [];
+  if (!questions.length) {
+    throw new Error('Could not generate diagnostic questions.');
+  }
+  return questions.slice(0, 3);
+}
+
+export async function gradeFeynmanExplanation({
+  courseTitle,
+  concept,
+  referenceSummary = '',
+  userExplanation,
+  level = 'Beginner',
+}) {
+  const prompt =
+    `Course: ${courseTitle}\n` +
+    `Concept to explain: ${concept}\n` +
+    (referenceSummary ? `Reference overview: ${referenceSummary}\n` : '') +
+    `Learner level: ${level}\n` +
+    `Learner's explanation in their own words:\n"""\n${userExplanation}\n"""\n\n` +
+    'Evaluate this Feynman-technique explanation like an encouraging, sharp tutor.\n' +
+    'Output valid JSON ONLY with:\n' +
+    '- "score": integer 0-100\n' +
+    '- "verdict": short 1-sentence encouraging summary\n' +
+    '- "strengths": array of 1-3 specific things they explained accurately\n' +
+    '- "gaps": array of 1-3 missing pieces or inaccuracies to tighten up\n' +
+    '- "improvedExplanation": a crisp, clear model explanation in 3-4 sentences showing how to explain it cleanly';
+
+  const raw = await callGemini({
+    prompt,
+    maxOutputTokens: 1200,
+    timeoutMs: 35000,
+    jsonMode: true,
+    depth: 'fast',
+    temperature: 0.4,
+  });
+
+  const parsed = JSON.parse(extractJsonText(raw));
+  return {
+    score: Math.max(0, Math.min(100, Number(parsed?.score) || 0)),
+    verdict: parsed?.verdict || 'Good effort!',
+    strengths: Array.isArray(parsed?.strengths) ? parsed.strengths : [],
+    gaps: Array.isArray(parsed?.gaps) ? parsed.gaps : [],
+    improvedExplanation: parsed?.improvedExplanation || '',
+  };
 }
 
 // Backward-compatible exports
