@@ -6,36 +6,49 @@ import Chapters from "../../../components/CourseView/Chapters";
 import Colors from "../../../constant/Colors";
 import { db } from "../../../config/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
+import Button from "../../../components/Shared/Button";
+import { useTheme } from "../../../context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CourseView() {
   const { courseParams, courseId, enroll, refresh } = useLocalSearchParams();
+  const resolvedCourseId = Array.isArray(courseId) ? courseId[0] : courseId;
+  const rawCourseParams = Array.isArray(courseParams) ? courseParams[0] : courseParams;
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   useEffect(() => {
-    if (!courseParams) {
+    if (!rawCourseParams || refresh) {
       GetCourseById();
     } else {
       try {
-        const parsed = JSON.parse(courseParams);
-        const normalized = { docId: courseId ?? parsed.docId, ...parsed };
+        const parsed = JSON.parse(rawCourseParams);
+        const normalized = { docId: resolvedCourseId ?? parsed.docId, ...parsed };
         setCourse(normalized);
         setLoading(false);
       } catch (error) {
         console.error("Error parsing courseParams:", error);
-        setCourse(null);
-        setLoading(false);
+        GetCourseById();
       }
     }
-  }, [courseId, refresh]);
+  }, [resolvedCourseId, refresh]);
 
   const GetCourseById = async () => {
+    if (!resolvedCourseId) {
+      setCourse(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
-      const snap = await getDoc(doc(db, "Courses", courseId));
+      const snap = await getDoc(doc(db, "Courses", resolvedCourseId));
       if (snap.exists()) {
         const data = snap.data();
-        setCourse({ docId: courseId, ...data });
+        setCourse({ docId: resolvedCourseId, ...data });
       } else {
         setCourse(null);
       }
@@ -56,15 +69,31 @@ export default function CourseView() {
       params: {
         chapterParams: JSON.stringify(course.chapters?.[chapterIndex] ?? {}),
         docId: course.docId,
-        chapterIndex,
+        chapterIndex: String(chapterIndex),
+        courseTitle: course.courseTitle ?? "",
+        courseDescription: course.description ?? "",
+        level: course.level ?? "Beginner",
+        style: course.style ?? "Hands-on & Examples",
+        sourceNotes: course.sourceNotes ?? "",
       },
     });
   };
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color={Colors.PRIMARY} />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!course) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 25, backgroundColor: colors.background }}>
+        <Text style={{ fontFamily: "outfit-bold", fontSize: 20, marginBottom: 10, color: colors.text }}>
+          Course not found
+        </Text>
+        <Button text="Back To Home" onPress={goHome} />
       </View>
     );
   }
@@ -72,8 +101,10 @@ export default function CourseView() {
   return (
     <FlatList
       data={[]}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
       ListHeaderComponent={
-        <View style={{ flex: 1, backgroundColor: Colors.WHITE }}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
           <Intro
             course={course}
             enroll={enroll}
@@ -83,7 +114,9 @@ export default function CourseView() {
           {Array.isArray(course?.chapters) ? (
             <Chapters course={course} />
           ) : (
-            <Text>No Chapters Available</Text>
+            <Text style={{ padding: 20, fontFamily: "outfit", color: colors.textMuted }}>
+              No Chapters Available
+            </Text>
           )}
         </View>
       }

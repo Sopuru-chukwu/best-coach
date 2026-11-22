@@ -1,36 +1,90 @@
-import { View, Text, Image, StyleSheet, ScrollView, ImageBackground } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  ScrollView,
+  ImageBackground,
+  Alert,
+} from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '../../constant/Colors';
 import Button from '../../components/Shared/Button';
+import { generateQuizRemediation } from '../../config/AiModel';
+import CelebrationBurst from '../../components/Shared/CelebrationBanner';
+import { notifySuccess } from '../../config/haptics';
+import { useTheme } from '../../context/ThemeContext';
+
+const firstParam = (v) => (Array.isArray(v) ? v[0] : v);
 
 export default function QuizSummary() {
-  const { quizResultParam } = useLocalSearchParams();
-  const quizResult = JSON.parse(quizResultParam);
-  const [correctAns, setCorrectAns] = useState(0);
-  const [totalQuestion, setTotalQuestion] = useState(0);
+  const params = useLocalSearchParams();
+  const quizResultParam = firstParam(params.quizResultParam);
+  const courseTitle = firstParam(params.courseTitle) || '';
+  const level = firstParam(params.level) || 'Beginner';
+  const courseParams = firstParam(params.courseParams) || '';
   const router = useRouter();
 
-  useEffect(() => {
-    quizResult && CalculateResult();
-  }, [quizResult]);
+  const [remediation, setRemediation] = useState('');
+  const [loadingRemediation, setLoadingRemediation] = useState(false);
+  const { colors } = useTheme();
 
-  const CalculateResult = () => {
-    if (quizResult !== undefined) {
-      const correctAns_ = Object.entries(quizResult)?.filter(
-        ([key, value]) => value?.isCorrect === true
+  const quizResult = useMemo(() => {
+    try {
+      return quizResultParam ? JSON.parse(quizResultParam) : {};
+    } catch {
+      return {};
+    }
+  }, [quizResultParam]);
+
+  const entries = useMemo(() => Object.entries(quizResult || {}), [quizResult]);
+  const totalQuestion = entries.length;
+  const correctAns = useMemo(
+    () => entries.filter(([, value]) => value?.isCorrect === true).length,
+    [entries]
+  );
+  const missedItems = useMemo(
+    () => entries.map(([, value]) => value).filter((v) => v && v.isCorrect !== true),
+    [entries]
+  );
+
+  const percMark =
+    totalQuestion > 0 ? Math.round((correctAns / totalQuestion) * 100) : 0;
+
+  useEffect(() => {
+    if (percMark >= 60 && totalQuestion > 0) {
+      notifySuccess();
+    }
+  }, [percMark, totalQuestion]);
+
+  const onTeachMissed = async () => {
+    if (!missedItems.length || loadingRemediation) return;
+    setLoadingRemediation(true);
+    try {
+      const lesson = await generateQuizRemediation({
+        courseTitle,
+        missedItems,
+        level,
+      });
+      setRemediation(lesson);
+    } catch (err) {
+      Alert.alert(
+        'Coach Error',
+        err?.message || 'Could not generate your review lesson.'
       );
-      setCorrectAns(correctAns_.length);
-      setTotalQuestion(Object.keys(quizResult).length);
+    } finally {
+      setLoadingRemediation(false);
     }
   };
 
-  const GetPercMark = () => {
-    return ((correctAns / totalQuestion) * 100).toFixed(0);
-  };
-
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={[styles.scrollContainer, { backgroundColor: colors.background }]}
+    >
+      <CelebrationBurst active={percMark >= 60 && totalQuestion > 0} />
       <ImageBackground
         source={require('./../../assets/images/wave.png')}
         style={styles.headerBackground}
@@ -40,51 +94,101 @@ export default function QuizSummary() {
       </ImageBackground>
 
       <View style={styles.contentContainer}>
-        <View style={styles.resultCard}>
+        <View
+          style={[
+            styles.resultCard,
+            { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+          ]}
+        >
           <Image
             source={require('./../../assets/images/trophy.png')}
             style={styles.trophy}
           />
-          <Text style={styles.resultTitle}>
-            {GetPercMark() > 60 ? 'Congratulations!' : 'Try Again!'}
+          <Text style={[styles.resultTitle, { color: colors.text }]}>
+            {percMark >= 60 ? 'Congratulations!' : 'Keep Practicing!'}
           </Text>
-          <Text style={styles.resultSubtitle}>
-            You gave {GetPercMark()}% Correct answer
+          <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
+            You scored {percMark}% ({correctAns}/{totalQuestion} correct)
           </Text>
 
           <View style={styles.statsRow}>
-            <View style={styles.resultTextContainer}>
-              <Text style={styles.resultText}>Q {totalQuestion}</Text>
+            <View style={[styles.resultTextContainer, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.resultText, { color: colors.text }]}>Q {totalQuestion}</Text>
             </View>
-            <View style={styles.resultTextContainer}>
-              <Text style={styles.resultText}>✅ {correctAns}</Text>
+            <View style={[styles.resultTextContainer, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.resultText, { color: colors.text }]}>✅ {correctAns}</Text>
             </View>
-            <View style={styles.resultTextContainer}>
-              <Text style={styles.resultText}>❌ {totalQuestion - correctAns}</Text>
+            <View style={[styles.resultTextContainer, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.resultText, { color: colors.text }]}>❌ {totalQuestion - correctAns}</Text>
             </View>
           </View>
         </View>
 
-        <Button text={'Back To Home'} onPress={() => router.replace('/(tabs)/home')} />
+        {missedItems.length > 0 && !remediation && (
+          <Button
+            text="Teach Me What I Missed"
+            onPress={onTeachMissed}
+            loading={loadingRemediation}
+          />
+        )}
+
+        {!!remediation && (
+          <View style={styles.remediationCard}>
+            <View style={styles.remediationHeader}>
+              <Ionicons name="sparkles" size={20} color={Colors.PRIMARY} />
+              <Text style={styles.remediationTitle}>Coach Review Lesson</Text>
+            </View>
+            <Text style={styles.remediationBody}>{remediation}</Text>
+          </View>
+        )}
+
+        {!!courseParams && (
+          <Button
+            text="Retake Quiz"
+            type="outline"
+            onPress={() =>
+              router.replace({
+                pathname: '/quiz',
+                params: { courseParams },
+              })
+            }
+          />
+        )}
+
+        <Button
+          text={'Back To Home'}
+          type={missedItems.length > 0 && !remediation ? 'outline' : 'fill'}
+          onPress={() => router.replace('/(tabs)/home')}
+        />
 
         <View style={styles.summaryContainer}>
-          <Text style={styles.summaryHeader}>Summary</Text>
+          <Text style={styles.summaryHeader}>Answer Breakdown</Text>
 
-          {Object.entries(quizResult).map(([key, quizItem], index) => (
+          {entries.map(([key, quizItem]) => (
             <View
-              key={index}
+              key={key}
               style={{
                 padding: 15,
                 borderWidth: 1,
-                marginTop: 5,
+                marginTop: 8,
                 borderRadius: 15,
                 backgroundColor:
-                  quizItem?.isCorrect == true ? Colors.LIGTH_GREEN : Colors.LIGHT_RED,
-                borderColor: quizItem?.isCorrect == true ? Colors.GREEN : Colors.RED,
+                  quizItem?.isCorrect === true ? Colors.LIGTH_GREEN : Colors.LIGHT_RED,
+                borderColor: quizItem?.isCorrect === true ? Colors.GREEN : Colors.RED,
               }}
             >
-              <Text style={styles.questionText}>{quizItem.question}</Text>
-              <Text style={styles.answerText}>Ans: {quizItem?.correctAns}</Text>
+              <Text style={styles.questionText}>{quizItem?.question}</Text>
+              {quizItem?.isCorrect !== true && !!quizItem?.userChoice && (
+                <Text style={styles.wrongChoiceText}>
+                  Your answer: {quizItem.userChoice}
+                </Text>
+              )}
+              <Text style={styles.answerText}>Correct: {quizItem?.correctAns}</Text>
+              {!!quizItem?.explanation && (
+                <Text style={styles.explanationText}>
+                  Why: {quizItem.explanation}
+                </Text>
+              )}
             </View>
           ))}
         </View>
@@ -100,10 +204,10 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     width: '100%',
-    height: 250,
+    height: 240,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 70
+    paddingBottom: 70,
   },
   headerText: {
     fontFamily: 'outfit-bold',
@@ -129,44 +233,84 @@ const styles = StyleSheet.create({
     marginTop: -60,
   },
   resultTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: 'outfit-bold',
   },
   resultSubtitle: {
     fontFamily: 'outfit',
     color: Colors.GRAY,
-    fontSize: 17,
+    fontSize: 16,
+    marginTop: 4,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 12,
     gap: 10,
   },
   resultTextContainer: {
-    padding: 15,
+    padding: 14,
     backgroundColor: Colors.WHITE,
     elevation: 1,
     borderRadius: 10,
   },
   resultText: {
     fontFamily: 'outfit',
-    fontSize: 20,
+    fontSize: 18,
+  },
+  remediationCard: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#eff6ff',
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.PRIMARY,
+    borderRadius: 14,
+  },
+  remediationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  remediationTitle: {
+    fontFamily: 'outfit-bold',
+    fontSize: 18,
+    color: Colors.PRIMARY,
+  },
+  remediationBody: {
+    fontFamily: 'outfit',
+    fontSize: 15,
+    lineHeight: 23,
+    color: '#1f2937',
   },
   summaryContainer: {
     marginTop: 25,
   },
   summaryHeader: {
     fontFamily: 'outfit-bold',
-    fontSize: 25,
+    fontSize: 24,
   },
   questionText: {
+    fontFamily: 'outfit-bold',
+    fontSize: 18,
+  },
+  wrongChoiceText: {
     fontFamily: 'outfit',
-    fontSize: 20,
+    fontSize: 14,
+    color: Colors.RED,
+    marginTop: 5,
   },
   answerText: {
-    fontFamily: 'outfit',
+    fontFamily: 'outfit-bold',
     fontSize: 15,
-    marginTop: 5,
+    marginTop: 4,
+    color: '#14532d',
+  },
+  explanationText: {
+    fontFamily: 'outfit',
+    fontSize: 14,
+    color: '#374151',
+    marginTop: 6,
+    lineHeight: 20,
   },
 });

@@ -9,27 +9,42 @@ import { UserDetailContext } from "@/context/UserDetailContext";
 
 export default function Index() {
   const router = useRouter();
-  const { userDetail, setUserDetail } = useContext(UserDetailContext);
+  const { setUserDetail } = useContext(UserDetailContext);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        console.log("User detected:", user);
         try {
-          const userDoc = await getDoc(doc(db, "users", user?.email));
-          if (userDoc.exists()) {
-            setUserDetail(userDoc.data());
-            router.replace("/(tabs)/home");
-          } else {
-            console.warn("User data not found in Firestore");
+          const email = user.email?.toLowerCase() ?? "";
+          let userData = null;
+
+          if (email) {
+            const userDoc = await getDoc(doc(db, "users", email));
+            if (userDoc.exists()) {
+              userData = userDoc.data();
+            } else if (user.email && user.email !== email) {
+              const legacyDoc = await getDoc(doc(db, "users", user.email));
+              if (legacyDoc.exists()) {
+                userData = legacyDoc.data();
+              }
+            }
           }
+
+          setUserDetail(
+            userData || {
+              name: user.displayName || email.split("@")[0] || "Learner",
+              email: user.email || email,
+              member: false,
+              uid: user.uid,
+            }
+          );
+          router.replace("/(tabs)/home");
         } catch (error) {
           console.error("Error fetching user data:", error);
         }
       }
     });
 
-    // Cleanup function to avoid memory leaks
     return () => unsubscribe();
   }, []);
 
@@ -38,12 +53,13 @@ export default function Index() {
       <Image
         source={require("./../assets/images/landing.png")}
         style={{ width: "100%", height: 300, marginTop: 50 }}
+        resizeMode="contain"
       />
       <View
         style={{
           padding: 25,
           backgroundColor: Colors.PRIMARY,
-          height: "100%",
+          flex: 1,
           borderTopLeftRadius: 35,
           borderTopRightRadius: 35,
         }}
@@ -81,7 +97,7 @@ export default function Index() {
           </Text>
         </TouchableOpacity>
 
-        <View
+        <TouchableOpacity
           style={[
             styles.button,
             {
@@ -90,13 +106,12 @@ export default function Index() {
               borderColor: Colors.WHITE,
             },
           ]}
+          onPress={() => router.push("/auth/signin")}
         >
-          <TouchableOpacity onPress={() => router.push("/auth/signin")}>
-            <Text style={[styles.buttonText, { color: Colors.WHITE }]}>
+          <Text style={[styles.buttonText, { color: Colors.WHITE }]}>
             Already have an Account?
           </Text>
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </View>
     </View>
   );

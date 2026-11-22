@@ -1,40 +1,556 @@
-import { View, Text, FlatList } from 'react-native'
-import React from 'react'
-import Colors from './../../constant/Colors'
-import { CourseCategory } from './../../constant/Options'
-import CourseListByCategory from '../../components/Explore/CourseListByCategory'
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  Pressable,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  Modal,
+  Alert,
+} from 'react-native';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { db } from './../../config/firebaseConfig';
+import { CourseCategory, getBannerImage } from './../../constant/Options';
+import { UserDetailContext } from './../../context/UserDetailContext';
+import { useTheme } from './../../context/ThemeContext';
+import Button from './../../components/Shared/Button';
+import { CourseCardSkeleton } from './../../components/Shared/SkeletonLoader';
+import { tapSelection } from './../../config/haptics';
+
+const ALL_CATEGORIES = ['All', ...CourseCategory];
 
 export default function Explore() {
-  return (
-    <FlatList
-      data={[]}
-      style={{
-        backgroundColor: Colors.WHITE,
-        flex:1
-      }}
-      ListHeaderComponent={
-        <View style={{
-          padding: 25,
-          backgroundColor: Colors.WHITE,
-          flex: 1
-        }}>
-          <Text style={{
-            fontFamily: 'outfit-bold',
-            fontSize: 30
-          }}>Explore More Courses</Text>
-          {CourseCategory.map((item, index) => (
-            <View key={index} style={{
-              marginTop: 10
-            }}>
-              {/* <Text style={{
-                fontFamily: 'outfit-bold',
-                fontSize: 20
-              }}>{item}</Text> */}
-              <CourseListByCategory category={item} />
-            </View>
-          ))}
-        </View>
+  const { userDetail } = useContext(UserDetailContext);
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const [allCourses, setAllCourses] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [courseCode, setCourseCode] = useState('');
+  const [joining, setJoining] = useState(false);
+
+  const handleJoinByCode = async () => {
+    const trimmed = courseCode.trim();
+    if (!trimmed) {
+      Alert.alert('Enter Course Code', 'Paste a shared Course Code to open that course.');
+      return;
+    }
+
+    setJoining(true);
+    try {
+      const snap = await getDoc(doc(db, 'Courses', trimmed));
+      if (!snap.exists()) {
+        Alert.alert('Not Found', 'No course was found with that code. Check the code and try again.');
+        return;
       }
-    />
-  )
+      const data = { ...snap.data(), docId: snap.id };
+      const isMine = (data.createdBy || '').toLowerCase() === userEmail;
+      setJoinOpen(false);
+      setCourseCode('');
+      router.push({
+        pathname: '/courseView/' + data.docId,
+        params: {
+          courseParams: JSON.stringify(data),
+          enroll: String(!isMine),
+        },
+      });
+    } catch (err) {
+      Alert.alert('Join Error', err?.message || 'Could not look up that course code.');
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const fetchCourses = useCallback(async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'Courses'));
+      const list = [];
+      snap.forEach((docSnap) => {
+        list.push({ ...docSnap.data(), docId: docSnap.id });
+      });
+      setAllCourses(list);
+    } catch (error) {
+      console.error('Error loading explore courses:', error);
+    } finally {
+      setLoading(false);
+      setHasLoaded(true);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchCourses();
+    }, [fetchCourses])
+  );
+
+  const userEmail = (userDetail?.email || '').toLowerCase();
+
+  const ownedTitles = useMemo(() => {
+    const set = new Set();
+    for (const c of allCourses) {
+      if ((c.createdBy || '').toLowerCase() === userEmail && c.courseTitle) {
+        set.add(c.courseTitle.toLowerCase().trim());
+      }
+    }
+    return set;
+  }, [allCourses, userEmail]);
+
+  const filteredCourses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const seen = new Set();
+
+    return allCourses.filter((course) => {
+      const catMatch =
+        selectedCategory === 'All' || course.category === selectedCategory;
+      if (!catMatch) return false;
+
+      const textMatch =
+        !q ||
+        (course.courseTitle || '').toLowerCase().includes(q) ||
+        (course.description || '').toLowerCase().includes(q) ||
+        (course.category || '').toLowerCase().includes(q) ||
+        (course.level || '').toLowerCase().includes(q);
+      if (!textMatch) return false;
+
+      const titleKey = (course.courseTitle || course.docId).toLowerCase().trim();
+      const isMine = (course.createdBy || '').toLowerCase() === userEmail;
+      if (seen.has(titleKey)) return false;
+      if (!isMine && ownedTitles.has(titleKey)) return false;
+
+      seen.add(titleKey);
+      return true;
+    });
+  }, [allCourses, selectedCategory, searchQuery, userEmail, ownedTitles]);
+
+  const openCourse = (course) => {
+    const isMine = (course.createdBy || '').toLowerCase() === userEmail;
+    router.push({
+      pathname: '/courseView/' + course.docId,
+      params: {
+        courseParams: JSON.stringify(course),
+        enroll: String(!isMine),
+      },
+    });
+  };
+
+  return (
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <FlatList
+        data={filteredCourses}
+        keyExtractor={(item, index) => item.docId || String(index)}
+        onRefresh={fetchCourses}
+        refreshing={loading && hasLoaded}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 84 },
+        ]}
+        ListHeaderComponent={
+          <View>
+            <View style={styles.headerRow}>
+              <Text style={[styles.title, { color: colors.text, flex: 1 }]}>
+                Explore Courses
+              </Text>
+              <Pressable
+                onPress={() => {
+                  tapSelection();
+                  setJoinOpen(true);
+                }}
+                style={[styles.joinBtn, { backgroundColor: colors.primarySoft }]}
+              >
+                <Ionicons name="key-outline" size={16} color={colors.primary} />
+                <Text style={[styles.joinBtnText, { color: colors.primary }]}>
+                  Join Code
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              Discover courses across topics or build your own with AI.
+            </Text>
+
+            <View style={[styles.searchBar, { backgroundColor: colors.inputBg }]}>
+              <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search courses, topics, or level..."
+                placeholderTextColor={colors.textMuted}
+                style={[styles.searchInput, { color: colors.text }]}
+                returnKeyType="search"
+              />
+              {!!searchQuery && (
+                <Pressable onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryRow}
+            >
+              {ALL_CATEGORIES.map((cat) => {
+                const active = selectedCategory === cat;
+                return (
+                  <Pressable
+                    key={cat}
+                    onPress={() => {
+                      tapSelection();
+                      setSelectedCategory(cat);
+                    }}
+                    style={[
+                      styles.categoryChip,
+                      {
+                        backgroundColor: active ? colors.primary : colors.card,
+                        borderColor: active ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        { color: active ? colors.white : colors.text },
+                        active && { fontFamily: 'outfit-bold' },
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        }
+        ListEmptyComponent={
+          !hasLoaded && loading ? (
+            <CourseCardSkeleton count={3} />
+          ) : (
+            <View
+              style={[
+                styles.emptyBox,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons name="compass-outline" size={44} color={colors.textMuted} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                {searchQuery || selectedCategory !== 'All'
+                  ? 'No matching courses found'
+                  : 'No courses to explore yet'}
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+                Create a personalized AI course on any topic you want to learn.
+              </Text>
+              <View style={{ width: '100%', marginTop: 10 }}>
+                <Button
+                  text="+ Create New Course"
+                  onPress={() => router.push('/addCourse')}
+                />
+              </View>
+            </View>
+          )
+        }
+        renderItem={({ item }) => {
+          const isMine = (item.createdBy || '').toLowerCase() === userEmail;
+          return (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[
+                styles.card,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => openCourse(item)}
+            >
+              <Image
+                source={getBannerImage(item.banner_image)}
+                style={styles.banner}
+              />
+              <View style={styles.cardBody}>
+                <View style={styles.badgeRow}>
+                  {!!item.category && (
+                    <Text
+                      style={[
+                        styles.categoryBadge,
+                        { color: colors.primary, backgroundColor: colors.primarySoft },
+                      ]}
+                    >
+                      {item.category}
+                    </Text>
+                  )}
+                  {!!item.level && (
+                    <Text
+                      style={[
+                        styles.levelBadge,
+                        { color: colors.textMuted, backgroundColor: colors.cardAlt },
+                      ]}
+                    >
+                      {item.level}
+                    </Text>
+                  )}
+                  <Text
+                    style={[
+                      styles.ownerBadge,
+                      isMine
+                        ? { color: colors.green, backgroundColor: colors.greenSoft }
+                        : { color: colors.white, backgroundColor: colors.primary },
+                    ]}
+                  >
+                    {isMine ? 'My Course' : 'Enroll'}
+                  </Text>
+                </View>
+
+                <Text style={[styles.courseTitle, { color: colors.text }]} numberOfLines={2}>
+                  {item.courseTitle}
+                </Text>
+
+                {!!item.description && (
+                  <Text style={[styles.courseDesc, { color: colors.textMuted }]} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                )}
+
+                <View style={styles.cardFooter}>
+                  <Ionicons name="book-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.chapterCount, { color: colors.primary }]}>
+                    {item.chapters?.length ?? 0} Chapters
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
+
+      <Modal
+        visible={joinOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setJoinOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.headerRow}>
+              <Text style={[styles.modalTitle, { color: colors.text, flex: 1 }]}>
+                Join with Course Code
+              </Text>
+              <Pressable onPress={() => setJoinOpen(false)}>
+                <Ionicons name="close" size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            <Text style={[styles.subtitle, { color: colors.textMuted, marginBottom: 12 }]}>
+              Paste a shared Best Coach course code to preview and enroll.
+            </Text>
+            <TextInput
+              value={courseCode}
+              onChangeText={setCourseCode}
+              placeholder="e.g. 1763820123456_0"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              style={[
+                styles.codeInput,
+                {
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+            />
+            <Button text="Open Course" onPress={handleJoinByCode} loading={joining} />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 20,
+    flexGrow: 1,
+  },
+  title: {
+    fontFamily: 'outfit-bold',
+    fontSize: 30,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  joinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 99,
+  },
+  joinBtnText: {
+    fontFamily: 'outfit-bold',
+    fontSize: 13,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 20,
+  },
+  modalTitle: {
+    fontFamily: 'outfit-bold',
+    fontSize: 20,
+  },
+  codeInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 13,
+    fontFamily: 'outfit',
+    fontSize: 16,
+  },
+  subtitle: {
+    fontFamily: 'outfit',
+    fontSize: 15,
+    marginTop: 4,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 6,
+    marginTop: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: 'outfit',
+    fontSize: 16,
+  },
+  categoryRow: {
+    gap: 8,
+    paddingVertical: 14,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 99,
+    borderWidth: 1,
+  },
+  categoryChipText: {
+    fontFamily: 'outfit',
+    fontSize: 14,
+  },
+  card: {
+    borderRadius: 16,
+    marginBottom: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  banner: {
+    width: '100%',
+    height: 150,
+  },
+  cardBody: {
+    padding: 14,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  categoryBadge: {
+    fontFamily: 'outfit',
+    fontSize: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 99,
+  },
+  levelBadge: {
+    fontFamily: 'outfit',
+    fontSize: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 99,
+  },
+  ownerBadge: {
+    fontFamily: 'outfit-bold',
+    fontSize: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 99,
+    marginLeft: 'auto',
+  },
+  courseTitle: {
+    fontFamily: 'outfit-bold',
+    fontSize: 19,
+  },
+  courseDesc: {
+    fontFamily: 'outfit',
+    fontSize: 14,
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  chapterCount: {
+    fontFamily: 'outfit',
+    fontSize: 14,
+  },
+  emptyBox: {
+    alignItems: 'center',
+    padding: 28,
+    marginTop: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  emptyTitle: {
+    fontFamily: 'outfit-bold',
+    fontSize: 19,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontFamily: 'outfit',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 20,
+  },
+});

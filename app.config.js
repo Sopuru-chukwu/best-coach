@@ -1,5 +1,3 @@
-import 'dotenv/config';
-
 export default {
   expo: {
     name: "best-coach",
@@ -9,7 +7,6 @@ export default {
     icon: "./assets/images/logo.png",
     scheme: "myapp",
     userInterfaceStyle: "automatic",
-    newArchEnabled: false,
     ios: {
       supportsTablet: true
     },
@@ -42,6 +39,8 @@ export default {
     },
     extra: {
       geminiApiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY,
+      geminiModel: process.env.EXPO_PUBLIC_GEMINI_MODEL || "gemini-3.5-flash-lite",
+      aiProxyUrl: process.env.EXPO_PUBLIC_AI_PROXY_URL || "",
       eas: {
         projectId: "aea1d648-4a18-4dfe-af81-a8201cd5cbb0"
       },
