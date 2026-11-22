@@ -61,6 +61,11 @@ export const ProfileMenu = [
         path: '/savedDeck'
     },
     {
+        name: 'Replay App Tutorial',
+        icon: 'help-buoy-outline', // Ionic Icons
+        path: ''
+    },
+    {
         name: 'My Subscription',
         icon: 'shield-checkmark', // Ionic Icons
         path: ''

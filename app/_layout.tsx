@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UserDetailContext } from './../context/UserDetailContext';
 import { ThemeProvider, useTheme } from './../context/ThemeContext';
+import { TutorialProvider } from './../context/TutorialContext';
 import {
   MD3DarkTheme,
   MD3LightTheme,
@@ -55,7 +56,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppShell userDetail={userDetail} setUserDetail={setUserDetail} />
+        <TutorialProvider>
+          <AppShell userDetail={userDetail} setUserDetail={setUserDetail} />
+        </TutorialProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

@@ -20,6 +20,7 @@ import Button from '../../components/Shared/Button';
 import { gradeFeynmanExplanation } from '../../config/AiModel';
 import { recordStudyActivity } from '../../config/learningStats';
 import { notifySuccess, tapLight, tapSelection } from '../../config/haptics';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
 
 function formatSeconds(totalSec) {
   const m = Math.floor(totalSec / 60);
@@ -136,7 +137,11 @@ export default function ExamScreen() {
       notifySuccess();
       recordStudyActivity(userDetail, setUserDetail);
     } catch (err) {
-      Alert.alert('Grading Error', err?.message || 'Could not grade your explanation.');
+      console.error('Feynman grading error:', err);
+      Alert.alert(
+        'Grading Unavailable',
+        getFriendlyErrorMessage(err, 'Could not grade your explanation right now. Please try again.')
+      );
     } finally {
       setGrading(false);
     }

@@ -16,6 +16,8 @@ import { Snackbar } from "react-native-paper";
 import { loadCachedCourses, saveCachedCourses } from "../../config/offlineCache";
 import { CourseCardSkeleton } from "../../components/Shared/SkeletonLoader";
 import { getDueCards } from "../../config/spacedRepetition";
+import { useTutorial } from "../../context/TutorialContext";
+import CoachMarkTour from "../../components/Shared/CoachMarkTour";
 
 const getCreatedMillis = (createdOn) => {
   if (!createdOn) return 0;
@@ -28,6 +30,7 @@ const getCreatedMillis = (createdOn) => {
 export default function Home() {
   const { userDetail } = useContext(UserDetailContext);
   const { colors, isDark } = useTheme();
+  const { shouldShow, markSeen, skipAllTours } = useTutorial();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [courseList, setCourseList] = useState([]);
@@ -221,6 +224,52 @@ export default function Home() {
       >
         Course deleted
       </Snackbar>
+
+      <CoachMarkTour
+        visible={hasLoaded && shouldShow("home")}
+        onFinish={() => markSeen("home")}
+        onSkipAll={skipAllTours}
+        steps={[
+          {
+            title: "Welcome to Best Coach!",
+            icon: "sparkles",
+            position: "center",
+            description:
+              "Your personal AI tutor builds tailored courses, deep chapter lessons, quizzes, and flashcards for anything you want to learn.",
+            tip: "Let's take a quick 30-second tour of what to tap.",
+          },
+          {
+            title: "Create a Course Anytime",
+            icon: "add-circle-outline",
+            position: "top-right",
+            description:
+              "Tap the '+ New' button in the top-right corner to generate a personalized course from any topic, lecture notes, textbook photo, or PDF.",
+            tip: "Look for the white '+ New' pill button at the top right.",
+          },
+          {
+            title: "Daily Review & Practice",
+            icon: "layers-outline",
+            position: "center",
+            description:
+              "Once you have courses, your 'Due for Review Today' flashcards, Quiz, Flashcards, and Q&A practice modes all appear right here on Home.",
+            tip: "Tap any Progress card to jump straight back into your next unfinished chapter.",
+          },
+          {
+            title: "Explore, Progress & Profile",
+            icon: "compass-outline",
+            position: "bottom",
+            description:
+              "Use the bottom tabs to browse community courses (Explore), track streaks & daily goals (Progress), or switch Dark Mode & reminders (Profile).",
+            tip: "You can replay this tutorial anytime from the Profile tab.",
+            actionLabel: courseList.length === 0 ? "Create First Course" : "Start Learning",
+            onAction: () => {
+              if (courseList.length === 0) {
+                router.push("/addCourse");
+              }
+            },
+          },
+        ]}
+      />
     </View>
   );
 }

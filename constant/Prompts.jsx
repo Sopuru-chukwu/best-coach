@@ -8,6 +8,36 @@ export const TEACHING_STYLES = [
   "Deep Theory",
 ];
 
+export const TEACHING_STYLE_DETAILS = {
+  "Hands-on & Examples": {
+    shortGoal: "Best for building real skills & projects",
+    description: "Practical walkthroughs, real-world scenarios, and actionable code or step-by-step exercises.",
+    icon: "construct-outline",
+  },
+  "Exam Prep": {
+    shortGoal: "Best for tests, certifications & interviews",
+    description: "High-yield concepts, common traps to avoid, crisp definitions, and recall-focused quizzes.",
+    icon: "school-outline",
+  },
+  "Deep Theory": {
+    shortGoal: "Best for mastering the 'why' from first principles",
+    description: "Mental models, underlying mechanics, intuitive analogies, and deep conceptual clarity.",
+    icon: "bulb-outline",
+  },
+};
+
+export function recommendTeachingStyle(topicText = "") {
+  const lower = String(topicText || "").toLowerCase();
+  if (!lower.trim()) return "Hands-on & Examples";
+  if (/(exam|test|sat|gre|ielts|toefl|gcse|10th|12th|grade|chapter|cert|certification|interview|mcq|quiz|board|nclex|bar|gmat)/i.test(lower)) {
+    return "Exam Prep";
+  }
+  if (/(theory|quantum|physics|philosophy|economics|calculus|theorem|proof|mechanics|neuroscience|algorithm|architecture|principles|history)/i.test(lower)) {
+    return "Deep Theory";
+  }
+  return "Hands-on & Examples";
+}
+
 export function buildTopicIdeaPrompt({
   userInput = "",
   level = "Beginner",

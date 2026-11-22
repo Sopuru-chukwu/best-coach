@@ -23,6 +23,7 @@ import { recordStudyActivity } from '../../config/learningStats';
 import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tapLight } from '../../config/haptics';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
 
 export default function Quiz() {
   const { courseParams } = useLocalSearchParams();
@@ -91,7 +92,11 @@ export default function Quiz() {
         }).catch(() => {});
       }
     } catch (err) {
-      Alert.alert('Quiz Error', err?.message || 'Could not generate new questions.');
+      console.error('Quiz generation error:', err);
+      Alert.alert(
+        'Could Not Refresh Quiz',
+        getFriendlyErrorMessage(err, 'Could not generate new questions right now. Please try again.')
+      );
     } finally {
       setGeneratingQuiz(false);
     }

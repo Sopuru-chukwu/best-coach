@@ -29,6 +29,8 @@ import {
   scheduleDailyReminder,
 } from '../../config/reminders';
 import { tapSelection } from '../../config/haptics';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
+import { useTutorial } from '../../context/TutorialContext';
 
 const THEME_MODES = [
   { key: 'system', label: 'System', icon: 'phone-portrait-outline' },
@@ -39,6 +41,7 @@ const THEME_MODES = [
 export default function Profile() {
   const { userDetail, setUserDetail } = useContext(UserDetailContext);
   const { mode, setMode, colors } = useTheme();
+  const { resetAllTours } = useTutorial();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -63,7 +66,11 @@ export default function Profile() {
       const updated = await scheduleDailyReminder(preset);
       setReminder(updated);
     } catch (err) {
-      Alert.alert('Reminder Error', err?.message || 'Could not update study reminder.');
+      console.error('Reminder error:', err);
+      Alert.alert(
+        'Reminder Not Set',
+        getFriendlyErrorMessage(err, 'Could not update your study reminder. Check notification permissions in settings.')
+      );
     }
   };
 
@@ -95,13 +102,17 @@ export default function Profile() {
       setUserDetail((prev) => ({ ...(prev || {}), ...updates }));
       setPrefsOpen(false);
     } catch (err) {
-      Alert.alert('Save Failed', err?.message || 'Could not update profile.');
+      console.error('Profile save error:', err);
+      Alert.alert(
+        'Save Failed',
+        getFriendlyErrorMessage(err, 'Could not save your profile right now. Please try again.')
+      );
     } finally {
       setSavingPrefs(false);
     }
   };
 
-  const onMenuClick = (menu) => {
+  const onMenuClick = async (menu) => {
     if (menu.name === 'Logout') {
       signOut(auth)
         .then(() => {
@@ -112,6 +123,9 @@ export default function Profile() {
           console.error('Logout Error:', error);
           Alert.alert('Logout Error', 'Unable to sign out. Please try again.');
         });
+    } else if (menu.name === 'Replay App Tutorial') {
+      await resetAllTours();
+      router.replace('/(tabs)/home');
     } else if (menu.path) {
       router.push(menu.path);
     } else if (menu.name === 'My Subscription') {

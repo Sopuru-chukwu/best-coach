@@ -10,20 +10,24 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import React, { useContext, useState } from 'react';
-import Colors from './../../constant/Colors';
 import { useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './../../config/firebaseConfig';
 import { UserDetailContext } from './../../context/UserDetailContext';
 import { useTheme } from './../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getAuthErrorMessage } from '../../config/errorMessages';
+import { tapLight } from '../../config/haptics';
 
 export default function SignUp() {
   const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const { setUserDetail } = useContext(UserDetailContext);
   const { colors } = useTheme();
@@ -43,14 +47,19 @@ export default function SignUp() {
   const CreateNewAccount = async () => {
     const trimmedName = fullName.trim();
     const normalizedEmail = email.trim().toLowerCase();
+    setErrorMsg('');
 
     if (!trimmedName || !normalizedEmail || !password) {
-      Alert.alert('Missing Details', 'Please fill in your name, email, and password.');
+      const msg = 'Please fill in your name, email, and password.';
+      setErrorMsg(msg);
+      Alert.alert('Missing Details', msg);
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters long.');
+      const msg = 'Password must be at least 6 characters long.';
+      setErrorMsg(msg);
+      Alert.alert('Weak Password', msg);
       return;
     }
 
@@ -62,7 +71,9 @@ export default function SignUp() {
       router.replace({ pathname: '/auth/verifyEmail', params: { justSent: 'true' } });
     } catch (e) {
       console.error('Sign up error:', e);
-      Alert.alert('Sign Up Failed', e?.message || 'Unable to create account.');
+      const friendly = getAuthErrorMessage(e, 'signup');
+      setErrorMsg(friendly);
+      Alert.alert('Sign Up Failed', friendly);
     } finally {
       setLoading(false);
     }
@@ -99,14 +110,17 @@ export default function SignUp() {
       </Text>
 
       <TextInput
-        placeholder="Fullname"
+        placeholder="Full Name"
         placeholderTextColor={colors.textMuted}
         style={[
           styles.textInput,
           { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
         ]}
         value={fullName}
-        onChangeText={setFullName}
+        onChangeText={(val) => {
+          setFullName(val);
+          if (errorMsg) setErrorMsg('');
+        }}
       />
       <TextInput
         placeholder="Email"
@@ -116,28 +130,66 @@ export default function SignUp() {
           { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
         ]}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(val) => {
+          setEmail(val);
+          if (errorMsg) setErrorMsg('');
+        }}
         autoCapitalize="none"
         keyboardType="email-address"
       />
-      <TextInput
-        placeholder="Password"
-        placeholderTextColor={colors.textMuted}
-        secureTextEntry={true}
+
+      <View
         style={[
-          styles.textInput,
-          { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
+          styles.passwordWrapper,
+          { borderColor: colors.border, backgroundColor: colors.inputBg },
         ]}
-        value={password}
-        onChangeText={setPassword}
-      />
+      >
+        <TextInput
+          placeholder="Password (min. 6 characters)"
+          placeholderTextColor={colors.textMuted}
+          secureTextEntry={!showPassword}
+          style={[styles.passwordInput, { color: colors.text }]}
+          value={password}
+          onChangeText={(val) => {
+            setPassword(val);
+            if (errorMsg) setErrorMsg('');
+          }}
+          autoCapitalize="none"
+        />
+        <Pressable
+          onPress={() => {
+            tapLight();
+            setShowPassword((prev) => !prev);
+          }}
+          style={styles.eyeBtn}
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+        >
+          <Ionicons
+            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+            size={22}
+            color={colors.textMuted}
+          />
+        </Pressable>
+      </View>
+
+      {!!errorMsg && (
+        <View
+          style={[
+            styles.errorBox,
+            { backgroundColor: colors.redSoft, borderColor: colors.red },
+          ]}
+        >
+          <Ionicons name="alert-circle-outline" size={18} color={colors.red} />
+          <Text style={[styles.errorText, { color: colors.red }]}>{errorMsg}</Text>
+        </View>
+      )}
 
       <TouchableOpacity
         style={{
           padding: 15,
           backgroundColor: colors.primary,
           width: '100%',
-          marginTop: 25,
+          marginTop: 22,
           borderRadius: 12,
         }}
         onPress={CreateNewAccount}
@@ -190,8 +242,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     width: '100%',
     padding: 15,
-    fontSize: 18,
-    marginTop: 20,
-    borderRadius: 8,
+    fontSize: 17,
+    fontFamily: 'outfit',
+    marginTop: 16,
+    borderRadius: 10,
+  },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    width: '100%',
+    marginTop: 16,
+    borderRadius: 10,
+    paddingLeft: 15,
+    paddingRight: 8,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 15,
+    fontSize: 17,
+    fontFamily: 'outfit',
+  },
+  eyeBtn: {
+    padding: 8,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: 'outfit-medium',
+    fontSize: 14,
   },
 });

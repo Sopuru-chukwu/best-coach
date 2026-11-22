@@ -46,6 +46,9 @@ import {
   ComparisonTableCard,
   ConceptFlowCard,
 } from '../../components/ChapterView/VisualDiagramCard';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
+import { useTutorial } from '../../context/TutorialContext';
+import CoachMarkTour from '../../components/Shared/CoachMarkTour';
 
 const firstParam = (val) => (Array.isArray(val) ? val[0] : val);
 
@@ -87,6 +90,7 @@ export default function ChapterView() {
   const [speechRateIdx, setSpeechRateIdx] = useState(1); // 1.0x
   const { userDetail, setUserDetail } = useContext(UserDetailContext);
   const { colors } = useTheme();
+  const { shouldShow, markSeen, skipAllTours } = useTutorial();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   const router = useRouter();
@@ -162,7 +166,9 @@ export default function ChapterView() {
       }
     } catch (err) {
       console.error('Chapter generation error:', err);
-      setGenError(err?.message || 'Could not generate this chapter lesson.');
+      setGenError(
+        getFriendlyErrorMessage(err, 'Could not load this chapter lesson right now. Please tap Retry.')
+      );
     } finally {
       setGenerating(false);
     }
@@ -711,6 +717,36 @@ export default function ChapterView() {
         currentLesson={currentItem}
         level={level}
         style={style}
+      />
+
+      <CoachMarkTour
+        visible={!generating && !genError && contentList.length > 0 && shouldShow('chapter')}
+        onFinish={() => markSeen('chapter')}
+        onSkipAll={skipAllTours}
+        steps={[
+          {
+            title: 'Tap "Ask Coach" Anytime',
+            icon: 'sparkles',
+            position: 'top-right',
+            description:
+              'Confused by an explanation or want another example? Tap "Ask Coach" in the top-right to chat with a tutor who already knows this exact lesson.',
+          },
+          {
+            title: 'Listen, Resize, Note & Save',
+            icon: 'volume-high-outline',
+            position: 'top',
+            description:
+              'Use the reading bar to adjust text size (A-/A+), listen to audio narration on the go, write personal study notes, or save tricky lessons to your Review Deck.',
+          },
+          {
+            title: 'Test Yourself & Grow Your Streak',
+            icon: 'checkmark-done-circle-outline',
+            position: 'bottom',
+            description:
+              'Tap "Quick Check" cards at the bottom of lessons to test recall, then tap Next / Complete Chapter to log your daily study goal!',
+            actionLabel: 'Start Reading',
+          },
+        ]}
       />
     </View>
   );

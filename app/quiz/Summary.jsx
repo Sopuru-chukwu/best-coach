@@ -16,6 +16,7 @@ import { generateQuizRemediation } from '../../config/AiModel';
 import CelebrationBurst from '../../components/Shared/CelebrationBanner';
 import { notifySuccess } from '../../config/haptics';
 import { useTheme } from '../../context/ThemeContext';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
 
 const firstParam = (v) => (Array.isArray(v) ? v[0] : v);
 
@@ -70,9 +71,10 @@ export default function QuizSummary() {
       });
       setRemediation(lesson);
     } catch (err) {
+      console.error('Remediation error:', err);
       Alert.alert(
-        'Coach Error',
-        err?.message || 'Could not generate your review lesson.'
+        'Review Unavailable',
+        getFriendlyErrorMessage(err, 'Could not prepare your review lesson right now. Please try again.')
       );
     } finally {
       setLoadingRemediation(false);

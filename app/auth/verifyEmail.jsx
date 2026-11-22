@@ -16,6 +16,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { UserDetailContext } from '../../context/UserDetailContext';
 import Button from '../../components/Shared/Button';
 import { notifySuccess, tapLight } from '../../config/haptics';
+import { getAuthErrorMessage } from '../../config/errorMessages';
 
 const RESEND_COOLDOWN_SEC = 60;
 
@@ -109,7 +110,8 @@ export default function VerifyEmail() {
         );
       }
     } catch (err) {
-      Alert.alert('Check Failed', err?.message || 'Could not verify status. Try again.');
+      console.error('Email verification check error:', err);
+      Alert.alert('Check Failed', getAuthErrorMessage(err, 'verify'));
     } finally {
       setChecking(false);
     }
@@ -133,11 +135,8 @@ export default function VerifyEmail() {
         `A fresh verification link was sent to ${currentEmail}.`
       );
     } catch (err) {
-      const msg =
-        err?.code === 'auth/too-many-requests'
-          ? 'Too many requests. Please wait a minute before requesting another email.'
-          : err?.message || 'Could not resend verification email.';
-      Alert.alert('Resend Failed', msg);
+      console.error('Resend verification error:', err);
+      Alert.alert('Resend Failed', getAuthErrorMessage(err, 'verify'));
     } finally {
       setResending(false);
     }

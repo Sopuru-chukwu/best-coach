@@ -19,6 +19,7 @@ import Button from '../Shared/Button';
 import { copyOrShareText } from '../../config/clipboard';
 import { speakText, stopSpeaking } from '../../config/voiceCoach';
 import { tapLight } from '../../config/haptics';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
 
 export default function CheatSheetModal({ visible, onClose, course }) {
   const { colors } = useTheme();
@@ -52,7 +53,10 @@ export default function CheatSheetModal({ visible, onClose, course }) {
         }).catch(() => {});
       }
     } catch (err) {
-      setError(err?.message || 'Could not generate cheat sheet.');
+      console.error('Cheat sheet generation error:', err);
+      setError(
+        getFriendlyErrorMessage(err, 'Could not build your cheat sheet right now. Please try again.')
+      );
     } finally {
       setLoading(false);
     }

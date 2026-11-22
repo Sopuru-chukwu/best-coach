@@ -33,6 +33,7 @@ import { useTheme } from './../../context/ThemeContext';
 import Button from './../../components/Shared/Button';
 import { CourseCardSkeleton } from './../../components/Shared/SkeletonLoader';
 import { tapLight, tapSelection } from './../../config/haptics';
+import { getFriendlyErrorMessage } from './../../config/errorMessages';
 
 const ALL_CATEGORIES = ['All', ...CourseCategory];
 const SORT_MODES = [
@@ -91,7 +92,11 @@ export default function Explore() {
         },
       });
     } catch (err) {
-      Alert.alert('Join Error', err?.message || 'Could not look up that course code.');
+      console.error('Join by code error:', err);
+      Alert.alert(
+        'Could Not Open Course',
+        getFriendlyErrorMessage(err, 'Could not look up that course code. Please check your connection and try again.')
+      );
     } finally {
       setJoining(false);
     }

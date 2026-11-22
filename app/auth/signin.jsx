@@ -12,8 +12,8 @@ import {
   Platform,
 } from "react-native";
 import React, { useContext, useState } from "react";
-import Colors from "../../constant/Colors";
 import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { auth, db } from "../../config/firebaseConfig";
 import {
   reload,
@@ -24,10 +24,12 @@ import { doc, getDoc } from "firebase/firestore";
 import { UserDetailContext } from "./../../context/UserDetailContext";
 import { useTheme } from "./../../context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getAuthErrorMessage } from "../../config/errorMessages";
+import { tapLight } from "../../config/haptics";
 
 const showNotice = (title, message) => {
   if (Platform.OS === "android") {
-    ToastAndroid.show(message, ToastAndroid.BOTTOM);
+    ToastAndroid.show(message, ToastAndroid.LONG);
   } else {
     Alert.alert(title, message);
   }
@@ -37,6 +39,8 @@ export default function SignIn() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const { setUserDetail } = useContext(UserDetailContext);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -67,8 +71,19 @@ export default function SignIn() {
 
   const onSignIn = async () => {
     const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      showNotice("Missing Details", "Please enter your email and password.");
+    setErrorMsg("");
+
+    if (!trimmedEmail) {
+      const msg = "Please enter your email address.";
+      setErrorMsg(msg);
+      showNotice("Missing Email", msg);
+      return;
+    }
+
+    if (!password) {
+      const msg = "Please enter your password.";
+      setErrorMsg(msg);
+      showNotice("Missing Password", msg);
       return;
     }
 
@@ -84,22 +99,9 @@ export default function SignIn() {
       router.replace("/(tabs)/home");
     } catch (e) {
       console.error("Sign in error:", e);
-      const code = e?.code || "";
-      if (code === "permission-denied" || e?.message?.includes("insufficient permissions")) {
-        showNotice(
-          "Database Permission Error",
-          "Signed in, but Firestore denied access. Update your Firestore Security Rules in Firebase Console."
-        );
-      } else if (
-        code === "auth/invalid-credential" ||
-        code === "auth/wrong-password" ||
-        code === "auth/user-not-found" ||
-        code === "auth/invalid-email"
-      ) {
-        showNotice("Sign In Failed", "Incorrect Email or Password");
-      } else {
-        showNotice("Sign In Failed", e?.message || "Unable to sign in.");
-      }
+      const friendly = getAuthErrorMessage(e, "signin");
+      setErrorMsg(friendly);
+      showNotice("Sign In Failed", friendly);
     } finally {
       setLoading(false);
     }
@@ -108,18 +110,24 @@ export default function SignIn() {
   const onForgotPassword = async () => {
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      showNotice("Enter Email", "Type your email address first, then tap Forgot Password.");
+      const msg = "Enter your email address first, then tap Forgot Password.";
+      setErrorMsg(msg);
+      showNotice("Enter Email", msg);
       return;
     }
 
     try {
       await sendPasswordResetEmail(auth, trimmedEmail);
+      setErrorMsg("");
       Alert.alert(
         "Reset Link Sent",
-        `If an account exists for ${trimmedEmail}, a password reset email has been sent.`
+        `If an account exists for ${trimmedEmail}, a password reset link has been sent to your inbox.`
       );
     } catch (e) {
-      showNotice("Reset Failed", e?.message || "Could not send password reset email.");
+      console.error("Password reset error:", e);
+      const friendly = getAuthErrorMessage(e, "reset");
+      setErrorMsg(friendly);
+      showNotice("Reset Failed", friendly);
     }
   };
 
@@ -165,25 +173,62 @@ export default function SignIn() {
           },
         ]}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(val) => {
+          setEmail(val);
+          if (errorMsg) setErrorMsg("");
+        }}
         autoCapitalize="none"
         keyboardType="email-address"
       />
-      <TextInput
-        placeholder="Password"
-        placeholderTextColor={colors.textMuted}
-        secureTextEntry={true}
+
+      <View
         style={[
-          styles.textInput,
+          styles.passwordWrapper,
           {
             borderColor: colors.border,
             backgroundColor: colors.inputBg,
-            color: colors.text,
           },
         ]}
-        value={password}
-        onChangeText={setPassword}
-      />
+      >
+        <TextInput
+          placeholder="Password"
+          placeholderTextColor={colors.textMuted}
+          secureTextEntry={!showPassword}
+          style={[styles.passwordInput, { color: colors.text }]}
+          value={password}
+          onChangeText={(val) => {
+            setPassword(val);
+            if (errorMsg) setErrorMsg("");
+          }}
+          autoCapitalize="none"
+        />
+        <Pressable
+          onPress={() => {
+            tapLight();
+            setShowPassword((prev) => !prev);
+          }}
+          style={styles.eyeBtn}
+          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+        >
+          <Ionicons
+            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            size={22}
+            color={colors.textMuted}
+          />
+        </Pressable>
+      </View>
+
+      {!!errorMsg && (
+        <View
+          style={[
+            styles.errorBox,
+            { backgroundColor: colors.redSoft, borderColor: colors.red },
+          ]}
+        >
+          <Ionicons name="alert-circle-outline" size={18} color={colors.red} />
+          <Text style={[styles.errorText, { color: colors.red }]}>{errorMsg}</Text>
+        </View>
+      )}
 
       <Pressable
         onPress={onForgotPassword}
@@ -252,8 +297,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     width: "100%",
     padding: 15,
-    fontSize: 18,
+    fontSize: 17,
+    fontFamily: "outfit",
     marginTop: 20,
-    borderRadius: 8,
+    borderRadius: 10,
+  },
+  passwordWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    width: "100%",
+    marginTop: 16,
+    borderRadius: 10,
+    paddingLeft: 15,
+    paddingRight: 8,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 15,
+    fontSize: 17,
+    fontFamily: "outfit",
+  },
+  eyeBtn: {
+    padding: 8,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: "outfit-medium",
+    fontSize: 14,
   },
 });

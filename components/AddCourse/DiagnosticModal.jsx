@@ -15,6 +15,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { generateDiagnosticQuiz } from '../../config/AiModel';
 import Button from '../Shared/Button';
 import { notifySuccess, tapLight } from '../../config/haptics';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
 
 export default function DiagnosticModal({ visible, onClose, topic, onComplete }) {
   const { colors } = useTheme();
@@ -32,7 +33,10 @@ export default function DiagnosticModal({ visible, onClose, topic, onComplete })
       const qs = await generateDiagnosticQuiz({ topic: topic.trim() });
       setQuestions(qs);
     } catch (err) {
-      setError(err?.message || 'Could not create diagnostic questions.');
+      console.error('Diagnostic quiz error:', err);
+      setError(
+        getFriendlyErrorMessage(err, 'Could not load the skill check right now. Please try again.')
+      );
     } finally {
       setLoading(false);
     }

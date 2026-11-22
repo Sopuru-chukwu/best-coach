@@ -15,6 +15,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '../../constant/Colors';
 import { askCoach } from '../../config/AiModel';
 import { useTheme } from '../../context/ThemeContext';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
 
 const QUICK_PROMPTS = [
   'Explain this more simply',
@@ -62,11 +63,15 @@ export default function AskCoachModal({
 
       setMessages((prev) => [...prev, { role: 'coach', text: reply }]);
     } catch (err) {
+      console.error('Ask Coach error:', err);
       setMessages((prev) => [
         ...prev,
         {
           role: 'coach',
-          text: `Sorry, I couldn't respond right now (${err?.message || 'network error'}). Please try again.`,
+          text: getFriendlyErrorMessage(
+            err,
+            "Sorry, I couldn't respond right now. Please try again in a moment."
+          ),
         },
       ]);
     } finally {

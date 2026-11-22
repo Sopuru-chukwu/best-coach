@@ -20,6 +20,8 @@ import { UserDetailContext } from '../../context/UserDetailContext';
 import {
   buildTopicIdeaPrompt,
   LEARNER_LEVELS,
+  recommendTeachingStyle,
+  TEACHING_STYLE_DETAILS,
   TEACHING_STYLES,
 } from '../../constant/Prompts';
 import { db } from '../../config/firebaseConfig';
@@ -33,6 +35,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { tapLight, tapSelection } from '../../config/haptics';
 import DiagnosticModal from '../../components/AddCourse/DiagnosticModal';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
+import { useTutorial } from '../../context/TutorialContext';
+import CoachMarkTour from '../../components/Shared/CoachMarkTour';
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -75,8 +80,10 @@ export default function AddCourse() {
   const [diagOpen, setDiagOpen] = useState(false);
   const [diagnosticInfo, setDiagnosticInfo] = useState(null);
   const { colors } = useTheme();
+  const { shouldShow, markSeen, skipAllTours } = useTutorial();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const recommendedStyle = recommendTeachingStyle(`${userInput} ${sourceNotes}`);
 
   const onPickPhoto = async () => {
     tapLight();
@@ -104,7 +111,11 @@ export default function AddCourse() {
         data: base64,
       });
     } catch (err) {
-      Alert.alert('Photo Error', err?.message || 'Could not load selected photo.');
+      console.error('Photo picker error:', err);
+      Alert.alert(
+        'Photo Error',
+        getFriendlyErrorMessage(err, 'Could not load the selected photo. Please try another one.')
+      );
     }
   };
 
@@ -133,7 +144,11 @@ export default function AddCourse() {
         data: base64,
       });
     } catch (err) {
-      Alert.alert('Document Error', err?.message || 'Could not read selected file.');
+      console.error('Document picker error:', err);
+      Alert.alert(
+        'Document Error',
+        getFriendlyErrorMessage(err, 'Could not read that file. Please try another PDF or text file.')
+      );
     }
   };
 
@@ -147,9 +162,10 @@ export default function AddCourse() {
     }
 
     if (!isAiConfigured()) {
+      console.warn('AI configuration missing (EXPO_PUBLIC_AI_PROXY_URL / EXPO_PUBLIC_GEMINI_API_KEY).');
       Alert.alert(
-        'Missing AI Config',
-        'Set EXPO_PUBLIC_AI_PROXY_URL or EXPO_PUBLIC_GEMINI_API_KEY in your .env file and restart Expo.'
+        'Service Unavailable',
+        'Course generation is temporarily unavailable. Please try again later.'
       );
       return;
     }
@@ -190,14 +206,17 @@ export default function AddCourse() {
         .filter(Boolean);
 
       if (extractedTopics.length === 0) {
-        throw new Error('Failed to extract topics from AI response.');
+        throw new Error('Could not find topic ideas for that input. Try being more specific.');
       }
 
       setTopics(extractedTopics);
       setSelectedTopics([]);
     } catch (error) {
       console.error('Error generating topics:', error?.message || error);
-      Alert.alert('Topic Error', error?.message || 'Failed to generate topics.');
+      Alert.alert(
+        'Could Not Generate Topics',
+        getFriendlyErrorMessage(error, 'We could not generate topic ideas right now. Please try again.')
+      );
       setTopics([]);
     } finally {
       setTopicLoading(false);
@@ -220,9 +239,10 @@ export default function AddCourse() {
     }
 
     if (!isAiConfigured()) {
+      console.warn('AI configuration missing (EXPO_PUBLIC_AI_PROXY_URL / EXPO_PUBLIC_GEMINI_API_KEY).');
       Alert.alert(
-        'Missing AI Config',
-        'Set EXPO_PUBLIC_AI_PROXY_URL or EXPO_PUBLIC_GEMINI_API_KEY in your .env file and restart Expo.'
+        'Service Unavailable',
+        'Course generation is temporarily unavailable. Please try again later.'
       );
       return;
     }
@@ -250,12 +270,12 @@ export default function AddCourse() {
               : [];
       } catch {
         throw new Error(
-          'The course syllabus returned was not valid JSON. Please try again.'
+          'We had trouble building your course outline. Please try again.'
         );
       }
 
       if (!courses.length) {
-        throw new Error('AI did not return a course syllabus.');
+        throw new Error('We could not create a course for those topics. Please try again.');
       }
 
       const timestamp = Date.now();
@@ -294,8 +314,8 @@ export default function AddCourse() {
         } catch (firestoreError) {
           console.error('Error saving course:', firestoreError);
           Alert.alert(
-            'Firestore Error',
-            firestoreError?.message || 'Failed to save course.'
+            'Could Not Save Course',
+            getFriendlyErrorMessage(firestoreError, 'We could not save your course right now. Please try again.')
           );
         }
       }
@@ -312,7 +332,10 @@ export default function AddCourse() {
       }
     } catch (error) {
       console.error('Error generating courses:', error?.message || error);
-      Alert.alert('Course Error', error?.message || 'Failed to generate course.');
+      Alert.alert(
+        'Could Not Build Course',
+        getFriendlyErrorMessage(error, 'We could not generate your course right now. Please try again.')
+      );
     } finally {
       setCourseLoading(false);
     }
@@ -503,30 +526,64 @@ export default function AddCourse() {
       </View>
 
       <Text style={[styles.sectionLabel, { color: colors.text }]}>Teaching Style</Text>
-      <View style={styles.chipRow}>
-        {TEACHING_STYLES.map((item) => (
-          <Pressable
-            key={item}
-            onPress={() => {
-              tapSelection();
-              setStyle(item);
-            }}
-          >
-            <Text
+      <View style={{ gap: 8 }}>
+        {TEACHING_STYLES.map((item) => {
+          const active = style === item;
+          const info = TEACHING_STYLE_DETAILS[item];
+          const isRecommended = Boolean(userInput.trim() || sourceNotes.trim()) && recommendedStyle === item;
+          return (
+            <Pressable
+              key={item}
+              onPress={() => {
+                tapSelection();
+                setStyle(item);
+              }}
               style={[
-                styles.chip,
-                { borderColor: colors.border, color: colors.text, backgroundColor: colors.card },
-                style === item && {
-                  backgroundColor: colors.primary,
-                  borderColor: colors.primary,
-                  color: colors.white,
+                styles.styleCard,
+                {
+                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active ? colors.primarySoft : colors.card,
                 },
               ]}
             >
-              {item}
-            </Text>
-          </Pressable>
-        ))}
+              <View style={styles.styleCardTop}>
+                <Ionicons
+                  name={info?.icon || 'sparkles-outline'}
+                  size={18}
+                  color={active ? colors.primary : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.styleCardTitle,
+                    { color: active ? colors.primary : colors.text, flex: 1 },
+                  ]}
+                >
+                  {item}
+                </Text>
+                {isRecommended && (
+                  <Text
+                    style={[
+                      styles.recBadge,
+                      { backgroundColor: colors.greenSoft, color: colors.green },
+                    ]}
+                  >
+                    Recommended
+                  </Text>
+                )}
+              </View>
+              {!!info?.shortGoal && (
+                <Text style={[styles.styleCardGoal, { color: colors.text }]}>
+                  {info.shortGoal}
+                </Text>
+              )}
+              {!!info?.description && (
+                <Text style={[styles.styleCardDesc, { color: colors.textMuted }]}>
+                  {info.description}
+                </Text>
+              )}
+            </Pressable>
+          );
+        })}
       </View>
 
       <Button
@@ -578,6 +635,44 @@ export default function AddCourse() {
           setDiagnosticInfo(result);
           if (result?.level) setLevel(result.level);
         }}
+      />
+
+      <CoachMarkTour
+        visible={shouldShow('addCourse')}
+        onFinish={() => markSeen('addCourse')}
+        onSkipAll={skipAllTours}
+        steps={[
+          {
+            title: 'Enter a Topic or Upload Notes',
+            icon: 'document-text-outline',
+            position: 'top',
+            description:
+              'Type anything you want to learn—or tap Paste Notes, Photo, or PDF to generate a course straight from your textbook or class slides.',
+            tip: 'Specific prompts like "Python for data analysis" produce even sharper lessons.',
+          },
+          {
+            title: 'Set Your Level (or Test It)',
+            icon: 'speedometer-outline',
+            position: 'center',
+            description:
+              'Choose Beginner, Intermediate, or Advanced—or tap "3-Q Skill Check" so your coach gauges what you already know and skips the basics.',
+          },
+          {
+            title: 'Pick Your Teaching Style',
+            icon: 'bulb-outline',
+            position: 'center',
+            description:
+              'Each card explains what it fits best: Hands-on for projects, Exam Prep for tests/interviews, or Deep Theory for first principles. A "Recommended" badge updates as you type!',
+          },
+          {
+            title: 'Generate Topics & Build',
+            icon: 'rocket-outline',
+            position: 'bottom',
+            description:
+              'Tap "Generate Topic Ideas", select the modules you want to study, then tap "Build Course Syllabus" to launch your course.',
+            actionLabel: 'Let’s Create!',
+          },
+        ]}
       />
     </ScrollView>
   );
@@ -681,6 +776,38 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     fontFamily: 'outfit',
     fontSize: 14,
+  },
+  styleCard: {
+    borderWidth: 1.2,
+    borderRadius: 14,
+    padding: 13,
+  },
+  styleCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  styleCardTitle: {
+    fontFamily: 'outfit-bold',
+    fontSize: 15,
+  },
+  recBadge: {
+    fontFamily: 'outfit-bold',
+    fontSize: 11,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+  },
+  styleCardGoal: {
+    fontFamily: 'outfit-medium',
+    fontSize: 13,
+    marginTop: 5,
+  },
+  styleCardDesc: {
+    fontFamily: 'outfit',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
   topicContainer: {
     marginTop: 18,

@@ -25,6 +25,7 @@ import { speakText, stopSpeaking } from '../../config/voiceCoach';
 import { UserDetailContext } from '../../context/UserDetailContext';
 import { recordStudyActivity } from '../../config/learningStats';
 import { makeCardKey, recordCardReview } from '../../config/spacedRepetition';
+import { getFriendlyErrorMessage } from '../../config/errorMessages';
 
 const SCREEN_WIDTH = Dimensions.get('screen').width;
 const CARD_WIDTH = SCREEN_WIDTH - 50;
@@ -191,7 +192,11 @@ export default function Flashcards() {
         }).catch(() => {});
       }
     } catch (err) {
-      Alert.alert('Flashcard Error', err?.message || 'Could not generate more cards.');
+      console.error('Flashcards generation error:', err);
+      Alert.alert(
+        'Could Not Add Cards',
+        getFriendlyErrorMessage(err, 'Could not generate more flashcards right now. Please try again.')
+      );
     } finally {
       setGeneratingMore(false);
     }
