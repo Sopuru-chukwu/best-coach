@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// Security rules for Best Coach.
+// Deploy with: firebase deploy --only firestore:rules
+//
+// Data model (matches the app code):
+//   users/{email}     – one profile per learner, keyed by lower-cased email
+//   Courses/{docId}   – a course owned by `createdBy` (the owner's email);
+//                       everyone signed in can browse them on the Explore tab
+//   aiUsage/{id}      – AI request counters, written only by the aiProxy function
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email is string;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    // ---------- users ----------
+    match /users/{email} {
+      function isMe() {
+        return signedIn() && email.lower() == myEmail();
+      }
+
+      // `member` is reserved for paid/admin status: learners can't grant it to themselves.
+      function memberUntouchedOnCreate() {
+        return !('member' in request.resource.data) || request.resource.data.member == false;
+      }
+      function memberUntouchedOnUpdate() {
+        return request.resource.data.get('member', false) == resource.data.get('member', false);
+      }
+
+      // Profiles are private. Signup writes this before the email is verified.
+      allow read: if isMe();
+      allow create: if isMe() && memberUntouchedOnCreate();
+      allow update: if isMe() && memberUntouchedOnUpdate();
+      allow delete: if isMe();
+    }
+
+    // ---------- Courses ----------
+    match /Courses/{docId} {
+      function ownsExisting() {
+        return verified()
+          && resource.data.get('createdBy', '') is string
+          && resource.data.get('createdBy', '').lower() == myEmail();
+      }
+
+      function ownsIncoming() {
+        return verified()
+          && request.resource.data.get('createdBy', '') is string
+          && request.resource.data.get('createdBy', '').lower() == myEmail();
+      }
+
+      // A non-owner may like/unlike: only their own email is added to or removed from likedBy.
+      function isLikeToggle() {
+        let before = resource.data.get('likedBy', []).toSet();
+        let after = request.resource.data.get('likedBy', []).toSet();
+        let changed = after.difference(before).union(before.difference(after));
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
+          && changed.size() == 1
+          && changed.hasOnly([request.auth.token.email, myEmail()]);
+      }
+
+      // A non-owner enrolling bumps enrollCount by exactly one.
+      function isEnrollBump() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enrollCount'])
+          && request.resource.data.enrollCount == resource.data.get('enrollCount', 0) + 1;
+      }
+
+      // Explore lists every course, so any signed-in learner can read them.
+      allow read: if signedIn();
+
+      // The creator must be the signed-in learner (also covers "undo delete").
+      allow create: if ownsIncoming();
+
+      // Owners can edit their course but not hand it to someone else.
+      allow update: if (ownsExisting() && ownsIncoming())
+        || (verified() && (isLikeToggle() || isEnrollBump()));
+
+      allow delete: if ownsExisting();
+    }
+
+    // Everything else (including aiUsage) is closed to the app.
+    // The aiProxy function uses the Admin SDK, which bypasses these rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

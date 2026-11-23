@@ -62,6 +62,14 @@ export function getFriendlyErrorMessage(
   const raw = String(error?.message || '');
   const lower = raw.toLowerCase();
 
+  if (error?.dailyLimitReached) {
+    return raw;
+  }
+
+  if (status === 403 && lower.includes('verify your email')) {
+    return raw;
+  }
+
   if (
     status === 429 ||
     status === 503 ||

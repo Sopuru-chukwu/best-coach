@@ -20,23 +20,18 @@ const COACH_SYSTEM_INSTRUCTION =
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// A direct Gemini key is a development-only shortcut. In release builds `__DEV__` is
+// false, so this whole expression folds to '' and the key is never bundled into the
+// app; release builds must go through the aiProxy Cloud Function instead.
+const DEV_ONLY_GEMINI_KEY = __DEV__ ? process.env.EXPO_PUBLIC_GEMINI_API_KEY : '';
+
 export function getGeminiApiKey() {
-  const candidates = [
-    process.env.EXPO_PUBLIC_GEMINI_API_KEY,
-    Constants.expoConfig?.extra?.geminiApiKey,
-    Constants.manifest?.extra?.geminiApiKey,
-  ];
-
-  for (const key of candidates) {
-    if (typeof key === 'string') {
-      const trimmed = key.trim();
-      if (trimmed && !trimmed.startsWith('@') && trimmed !== 'your_gemini_api_key_here') {
-        return trimmed;
-      }
-    }
+  if (typeof DEV_ONLY_GEMINI_KEY !== 'string') return '';
+  const trimmed = DEV_ONLY_GEMINI_KEY.trim();
+  if (!trimmed || trimmed.startsWith('@') || trimmed === 'your_gemini_api_key_here') {
+    return '';
   }
-
-  return '';
+  return trimmed;
 }
 
 export function getAiProxyUrl() {
@@ -199,9 +194,12 @@ async function requestModel({
       payload?.error?.message || `Gemini API request failed with status ${response.status}.`;
     const err = new Error(apiMessage);
     err.status = response.status;
+    // The proxy's per-user daily cap: retrying or switching models won't help.
+    err.dailyLimitReached = useProxy && response.status === 429 && /coaching limit/i.test(apiMessage);
     err.retryable =
-      RETRYABLE_STATUS_CODES.has(response.status) ||
-      /high demand|overloaded|temporarily unavailable|try again/i.test(apiMessage);
+      !err.dailyLimitReached &&
+      (RETRYABLE_STATUS_CODES.has(response.status) ||
+        /high demand|overloaded|temporarily unavailable|try again/i.test(apiMessage));
     throw err;
   }
 
@@ -240,7 +238,9 @@ async function callGemini({
   const apiKey = getGeminiApiKey();
   if (!proxyUrl && !apiKey) {
     throw new Error(
-      'AI is not configured. Set EXPO_PUBLIC_AI_PROXY_URL or EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.'
+      __DEV__
+        ? 'AI is not configured. Set EXPO_PUBLIC_AI_PROXY_URL (or EXPO_PUBLIC_GEMINI_API_KEY for local dev) in .env and restart Expo.'
+        : 'AI is not configured for this build. Set EXPO_PUBLIC_AI_PROXY_URL before building.'
     );
   }
 
