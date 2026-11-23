@@ -33,7 +33,6 @@ export default function Chapters({ course }) {
                 router.push({
                   pathname: '/chapterView',
                   params: {
-                    chapterParams: JSON.stringify(item),
                     docId: course?.docId ?? '',
                     chapterIndex: String(index),
                     courseTitle: course?.courseTitle ?? '',

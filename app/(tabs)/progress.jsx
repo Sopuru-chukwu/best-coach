@@ -1,75 +1,24 @@
 import { View, Text, Image, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
-import React, { useCallback, useContext, useMemo, useState } from 'react';
-import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useContext, useMemo } from 'react';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserDetailContext } from '../../context/UserDetailContext';
 import { useTheme } from '../../context/ThemeContext';
-import { db } from '../../config/firebaseConfig';
-import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { useMyCourses } from '../../hooks/useMyCourses';
 import CourseProgressCard from '../../components/Shared/CourseProgressCard';
 import Button from '../../components/Shared/Button';
 import { computeLearningStats } from '../../config/learningStats';
 import MasteryRing from '../../components/Shared/MasteryRing';
 import WeeklyHeatmapCard from '../../components/Progress/WeeklyHeatmapCard';
-
-const getCreatedMillis = (createdOn) => {
-  if (!createdOn) return 0;
-  if (typeof createdOn?.toMillis === 'function') return createdOn.toMillis();
-  if (typeof createdOn?.seconds === 'number') return createdOn.seconds * 1000;
-  const parsed = new Date(createdOn).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
+import { courseRouteParams } from '../../config/courseStore';
 
 export default function Progress() {
   const { userDetail } = useContext(UserDetailContext);
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const [courseList, setCourseList] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const { courses: courseList, loading, hasLoaded, reload: GetCourseList } = useMyCourses();
   const router = useRouter();
 
-  const GetCourseList = useCallback(async () => {
-    if (!userDetail?.email) return;
-    setLoading(true);
-    try {
-      let querySnapshot;
-      try {
-        const q = query(
-          collection(db, 'Courses'),
-          where('createdBy', '==', userDetail.email),
-          orderBy('createdOn', 'desc')
-        );
-        querySnapshot = await getDocs(q);
-      } catch {
-        const fallbackQuery = query(
-          collection(db, 'Courses'),
-          where('createdBy', '==', userDetail.email)
-        );
-        querySnapshot = await getDocs(fallbackQuery);
-      }
-
-      const newList = [];
-      querySnapshot.forEach((docSnap) => {
-        newList.push({ ...docSnap.data(), docId: docSnap.id });
-      });
-      newList.sort((a, b) => getCreatedMillis(b.createdOn) - getCreatedMillis(a.createdOn));
-      setCourseList(newList);
-    } catch (error) {
-      console.error('Error loading course progress:', error);
-    } finally {
-      setLoading(false);
-      setHasLoaded(true);
-    }
-  }, [userDetail?.email]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (userDetail?.email) {
-        GetCourseList();
-      }
-    }, [userDetail?.email, GetCourseList])
-  );
 
   const stats = useMemo(() => computeLearningStats(courseList), [courseList]);
   const streakDays = Number(userDetail?.streakDays) || 0;
@@ -180,7 +129,7 @@ export default function Progress() {
                 router.push({
                   pathname: '/courseView/' + item.docId,
                   params: {
-                    courseParams: JSON.stringify(item),
+                    ...courseRouteParams(item),
                     enroll: 'false',
                   },
                 })

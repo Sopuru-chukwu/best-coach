@@ -34,6 +34,8 @@ import Button from './../../components/Shared/Button';
 import { CourseCardSkeleton } from './../../components/Shared/SkeletonLoader';
 import { tapLight, tapSelection } from './../../config/haptics';
 import { getFriendlyErrorMessage } from './../../config/errorMessages';
+import { courseRouteParams } from '../../config/courseStore';
+import { getCreatedMillis } from '../../config/courseUtils';
 
 const ALL_CATEGORIES = ['All', ...CourseCategory];
 const SORT_MODES = [
@@ -41,14 +43,6 @@ const SORT_MODES = [
   { key: 'newest', label: 'Newest' },
   { key: 'enrolled', label: 'Most Enrolled' },
 ];
-
-const getCreatedMillis = (createdOn) => {
-  if (!createdOn) return 0;
-  if (typeof createdOn?.toMillis === 'function') return createdOn.toMillis();
-  if (typeof createdOn?.seconds === 'number') return createdOn.seconds * 1000;
-  const parsed = new Date(createdOn).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
 
 export default function Explore() {
   const { userDetail } = useContext(UserDetailContext);
@@ -87,7 +81,7 @@ export default function Explore() {
       router.push({
         pathname: '/courseView/' + data.docId,
         params: {
-          courseParams: JSON.stringify(data),
+          ...courseRouteParams(data),
           enroll: String(!isMine),
         },
       });
@@ -213,7 +207,7 @@ export default function Explore() {
     router.push({
       pathname: '/courseView/' + course.docId,
       params: {
-        courseParams: JSON.stringify(course),
+        ...courseRouteParams(course),
         enroll: String(!isMine),
       },
     });

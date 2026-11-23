@@ -4,6 +4,7 @@ import Colors from '../../constant/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
+import { courseRouteParams } from '../../config/courseStore';
 
 function getPracticeStatus(course, optionName) {
   if (optionName === 'Quiz') {
@@ -46,7 +47,7 @@ export default function CourseListGrid({ courseList, option }) {
     router.push({
       pathname: option.path,
       params: {
-        courseParams: JSON.stringify(course),
+        ...courseRouteParams(course),
       },
     });
   };

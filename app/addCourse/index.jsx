@@ -38,6 +38,7 @@ import DiagnosticModal from '../../components/AddCourse/DiagnosticModal';
 import { getFriendlyErrorMessage } from '../../config/errorMessages';
 import { useTutorial } from '../../context/TutorialContext';
 import CoachMarkTour from '../../components/Shared/CoachMarkTour';
+import { courseRouteParams } from '../../config/courseStore';
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -249,7 +250,8 @@ export default function AddCourse() {
 
     setCourseLoading(true);
     try {
-      const textResponse = await generateCourseSyllabus({
+      // Already parsed and validated (bad chapters/quiz items dropped) by AiModel.
+      const courses = await generateCourseSyllabus({
         topics: selectedTopics,
         level,
         style,
@@ -257,22 +259,6 @@ export default function AddCourse() {
         attachments: attachment ? [attachment] : [],
         diagnosticSummary: diagnosticInfo?.summary || '',
       });
-
-      let courses = [];
-      try {
-        const resp = JSON.parse(extractJsonText(textResponse));
-        courses = Array.isArray(resp?.courses)
-          ? resp.courses
-          : Array.isArray(resp)
-            ? resp
-            : resp?.courseTitle
-              ? [resp]
-              : [];
-      } catch {
-        throw new Error(
-          'We had trouble building your course outline. Please try again.'
-        );
-      }
 
       if (!courses.length) {
         throw new Error('We could not create a course for those topics. Please try again.');
@@ -283,15 +269,6 @@ export default function AddCourse() {
 
       for (let i = 0; i < courses.length; i++) {
         const course = courses[i];
-        if (!course || typeof course !== 'object') continue;
-
-        const normalizedChapters = Array.isArray(course.chapters)
-          ? course.chapters.map((ch) => ({
-              ...ch,
-              content: Array.isArray(ch?.content) ? ch.content : [],
-              isDetailed: Array.isArray(ch?.content) && ch.content.length > 0,
-            }))
-          : [];
 
         const docId = `${timestamp}_${i}`;
         const courseData = {
@@ -299,7 +276,6 @@ export default function AddCourse() {
           level: course.level || level,
           style: course.style || style,
           sourceNotes: sourceNotes.trim().slice(0, 3000),
-          chapters: normalizedChapters,
           completedChapter: [],
           createdOn: new Date(),
           createdBy: userDetail?.email ?? '',
@@ -324,7 +300,7 @@ export default function AddCourse() {
         router.replace({
           pathname: '/courseView/' + firstSavedCourse.docId,
           params: {
-            courseParams: JSON.stringify(firstSavedCourse),
+            ...courseRouteParams(firstSavedCourse),
             courseId: firstSavedCourse.docId,
             enroll: 'false',
           },

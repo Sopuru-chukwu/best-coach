@@ -9,7 +9,7 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Progress from 'react-native-progress';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -49,12 +49,12 @@ import {
 import { getFriendlyErrorMessage } from '../../config/errorMessages';
 import { useTutorial } from '../../context/TutorialContext';
 import CoachMarkTour from '../../components/Shared/CoachMarkTour';
+import { getCachedCourse, updateCachedCourse } from '../../config/courseStore';
 
 const firstParam = (val) => (Array.isArray(val) ? val[0] : val);
 
 export default function ChapterView() {
   const params = useLocalSearchParams();
-  const chapterParams = firstParam(params.chapterParams);
   const resolvedDocId = firstParam(params.docId) || '';
   const resolvedChapterIndex = parseInt(firstParam(params.chapterIndex) ?? '', 10);
   const courseTitle = firstParam(params.courseTitle) || '';
@@ -63,13 +63,11 @@ export default function ChapterView() {
   const style = firstParam(params.style) || 'Hands-on & Examples';
   const sourceNotes = firstParam(params.sourceNotes) || '';
 
-  const initialChapter = useMemo(() => {
-    try {
-      return chapterParams ? JSON.parse(chapterParams) : null;
-    } catch {
-      return null;
-    }
-  }, [chapterParams]);
+  // The chapter outline comes from the course the previous screen cached; if the
+  // app was reloaded, loadOrGenerateChapter fills it in from Firestore.
+  const [initialChapter, setInitialChapter] = useState(
+    () => getCachedCourse(resolvedDocId)?.chapters?.[resolvedChapterIndex] ?? null
+  );
 
   const [contentList, setContentList] = useState(
     Array.isArray(initialChapter?.content) ? initialChapter.content : []
@@ -96,6 +94,7 @@ export default function ChapterView() {
   const router = useRouter();
 
   const loadOrGenerateChapter = async () => {
+    let chapterMeta = initialChapter;
     setGenerating(true);
     setGenError('');
     try {
@@ -115,7 +114,12 @@ export default function ChapterView() {
           const snap = await getDoc(doc(db, 'Courses', resolvedDocId));
           if (snap.exists()) {
             const dbChapters = snap.data()?.chapters;
-            const cachedContent = dbChapters?.[resolvedChapterIndex]?.content;
+            const dbChapter = dbChapters?.[resolvedChapterIndex];
+            if (dbChapter && !chapterMeta) {
+              chapterMeta = dbChapter;
+              setInitialChapter(dbChapter);
+            }
+            const cachedContent = dbChapter?.content;
             if (Array.isArray(cachedContent) && cachedContent.length > 0) {
               setContentList(cachedContent);
               saveCachedChapter(resolvedDocId, resolvedChapterIndex, cachedContent);
@@ -129,11 +133,11 @@ export default function ChapterView() {
       }
 
       const generatedContent = await generateChapterLesson({
-        courseTitle: courseTitle || initialChapter?.chapterName || 'Course',
+        courseTitle: courseTitle || chapterMeta?.chapterName || 'Course',
         courseDescription,
-        chapterName: initialChapter?.chapterName || 'Chapter',
-        chapterSummary: initialChapter?.summary || '',
-        learningGoal: initialChapter?.learningGoal || '',
+        chapterName: chapterMeta?.chapterName || 'Chapter',
+        chapterSummary: chapterMeta?.summary || '',
+        learningGoal: chapterMeta?.learningGoal || '',
         level,
         style,
         sourceNotes,
@@ -141,6 +145,11 @@ export default function ChapterView() {
 
       setContentList(generatedContent);
       saveCachedChapter(resolvedDocId, resolvedChapterIndex, generatedContent);
+      updateCachedCourse(resolvedDocId, (prev) => ({
+        chapters: (prev.chapters || []).map((ch, idx) =>
+          idx === resolvedChapterIndex ? { ...ch, content: generatedContent, isDetailed: true } : ch
+        ),
+      }));
 
       // Persist generated deep chapter content back to Firestore so reopening is instant
       if (resolvedDocId && !Number.isNaN(resolvedChapterIndex)) {
@@ -177,7 +186,7 @@ export default function ChapterView() {
   useEffect(() => {
     if (contentList.length > 0 && resolvedDocId && !Number.isNaN(resolvedChapterIndex)) {
       saveCachedChapter(resolvedDocId, resolvedChapterIndex, contentList);
-    } else if (!contentList.length && initialChapter?.chapterName) {
+    } else if (!contentList.length && (initialChapter?.chapterName || resolvedDocId)) {
       loadOrGenerateChapter();
     }
   }, []);
@@ -203,6 +212,9 @@ export default function ChapterView() {
         await updateDoc(doc(db, 'Courses', resolvedDocId), {
           completedChapter: arrayUnion(resolvedChapterIndex),
         });
+        updateCachedCourse(resolvedDocId, (prev) => ({
+          completedChapter: [...new Set([...(prev.completedChapter || []), resolvedChapterIndex])],
+        }));
       }
       await recordStudyActivity(userDetail, setUserDetail);
       notifySuccess();

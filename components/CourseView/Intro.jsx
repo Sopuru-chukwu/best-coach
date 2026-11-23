@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CheatSheetModal from './CheatSheetModal';
 import CertificateModal from './CertificateModal';
 import { tapLight } from '../../config/haptics';
+import { courseRouteParams } from '../../config/courseStore';
 
 export default function Intro({ course, enroll, goHome, startOrContinue }) {
   const router = useRouter();
@@ -113,7 +114,7 @@ export default function Intro({ course, enroll, goHome, startOrContinue }) {
       router.push({
         pathname: '/courseView/' + docId,
         params: {
-          courseParams: JSON.stringify(data),
+          ...courseRouteParams(data),
           enroll: 'false',
           courseId: docId,
         },
@@ -222,7 +223,7 @@ export default function Intro({ course, enroll, goHome, startOrContinue }) {
                   tapLight();
                   router.push({
                     pathname: '/exam',
-                    params: { courseParams: JSON.stringify(course) },
+                    params: courseRouteParams(course),
                   });
                 }}
               />
