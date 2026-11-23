@@ -3,6 +3,7 @@ import React from 'react';
 import Colors from '../../constant/Colors';
 import CourseProgressCard from '../Shared/CourseProgressCard';
 import { useRouter } from 'expo-router';
+import { courseRouteParams } from '../../config/courseStore';
 
 export default function CourseProgress({ courseList }) {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function CourseProgress({ courseList }) {
               router.push({
                 pathname: '/courseView/' + item?.docId,
                 params: {
-                  courseParams: JSON.stringify(item),
+                  ...courseRouteParams(item),
                   enroll: 'false',
                 },
               })

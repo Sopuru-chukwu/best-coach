@@ -1,64 +1,26 @@
 import { View, Text, FlatList, ActivityIndicator } from "react-native";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Intro from "../../../components/CourseView/Intro";
 import Chapters from "../../../components/CourseView/Chapters";
 import Colors from "../../../constant/Colors";
-import { db } from "../../../config/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { useCourse } from "../../../hooks/useCourse";
 import Button from "../../../components/Shared/Button";
 import { useTheme } from "../../../context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CourseView() {
-  const { courseParams, courseId, enroll, refresh } = useLocalSearchParams();
+  const { courseId, enroll, refresh } = useLocalSearchParams();
   const resolvedCourseId = Array.isArray(courseId) ? courseId[0] : courseId;
-  const rawCourseParams = Array.isArray(courseParams) ? courseParams[0] : courseParams;
-  const [course, setCourse] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Show the cached copy instantly, then re-fetch so progress saved on other
+  // screens (completed chapters, quiz results) is up to date.
+  const { course, loading } = useCourse(resolvedCourseId, {
+    revalidate: true,
+    refreshKey: refresh,
+  });
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-
-  useEffect(() => {
-    if (!rawCourseParams || refresh) {
-      GetCourseById();
-    } else {
-      try {
-        const parsed = JSON.parse(rawCourseParams);
-        const normalized = { docId: resolvedCourseId ?? parsed.docId, ...parsed };
-        setCourse(normalized);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error parsing courseParams:", error);
-        GetCourseById();
-      }
-    }
-  }, [resolvedCourseId, refresh]);
-
-  const GetCourseById = async () => {
-    if (!resolvedCourseId) {
-      setCourse(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const snap = await getDoc(doc(db, "Courses", resolvedCourseId));
-      if (snap.exists()) {
-        const data = snap.data();
-        setCourse({ docId: resolvedCourseId, ...data });
-      } else {
-        setCourse(null);
-      }
-    } catch (error) {
-      console.error("Error fetching course:", error);
-      setCourse(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const goHome = () => router.replace("/(tabs)/home");
 
@@ -67,7 +29,6 @@ export default function CourseView() {
     router.push({
       pathname: "/chapterView",
       params: {
-        chapterParams: JSON.stringify(course.chapters?.[chapterIndex] ?? {}),
         docId: course.docId,
         chapterIndex: String(chapterIndex),
         courseTitle: course.courseTitle ?? "",

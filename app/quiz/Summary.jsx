@@ -25,7 +25,7 @@ export default function QuizSummary() {
   const quizResultParam = firstParam(params.quizResultParam);
   const courseTitle = firstParam(params.courseTitle) || '';
   const level = firstParam(params.level) || 'Beginner';
-  const courseParams = firstParam(params.courseParams) || '';
+  const courseId = firstParam(params.courseId) || '';
   const router = useRouter();
 
   const [remediation, setRemediation] = useState('');
@@ -144,14 +144,14 @@ export default function QuizSummary() {
           </View>
         )}
 
-        {!!courseParams && (
+        {!!courseId && (
           <Button
             text="Retake Quiz"
             type="outline"
             onPress={() =>
               router.replace({
                 pathname: '/quiz',
-                params: { courseParams },
+                params: { courseId },
               })
             }
           />

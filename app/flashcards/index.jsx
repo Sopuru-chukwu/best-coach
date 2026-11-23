@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '../../constant/Colors';
 import * as Progress from 'react-native-progress';
@@ -26,6 +26,8 @@ import { UserDetailContext } from '../../context/UserDetailContext';
 import { recordStudyActivity } from '../../config/learningStats';
 import { makeCardKey, recordCardReview } from '../../config/spacedRepetition';
 import { getFriendlyErrorMessage } from '../../config/errorMessages';
+import { withRouteCourse } from '../../components/Shared/withRouteCourse';
+import { updateCachedCourse } from '../../config/courseStore';
 
 const SCREEN_WIDTH = Dimensions.get('screen').width;
 const CARD_WIDTH = SCREEN_WIDTH - 50;
@@ -87,17 +89,8 @@ function FlashcardItem({ front, back, mastered }) {
   );
 }
 
-export default function Flashcards() {
-  const { courseParams } = useLocalSearchParams();
+function Flashcards({ course: initialCourse }) {
   const router = useRouter();
-  const initialCourse = useMemo(() => {
-    try {
-      const raw = Array.isArray(courseParams) ? courseParams[0] : courseParams;
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }, [courseParams]);
 
   const [course, setCourse] = useState(initialCourse);
   const flashcards = Array.isArray(course?.flashcards) ? course.flashcards : [];
@@ -141,6 +134,7 @@ export default function Flashcards() {
       await updateDoc(doc(db, 'Courses', course.docId), {
         masteredFlashcards: nextMastered,
       }).catch(() => {});
+      updateCachedCourse(course.docId, { masteredFlashcards: nextMastered });
     }
   };
 
@@ -185,6 +179,7 @@ export default function Flashcards() {
       });
       const updatedCards = [...flashcards, ...newCards];
       setCourse((prev) => ({ ...prev, flashcards: updatedCards }));
+      updateCachedCourse(course.docId, { flashcards: updatedCards });
 
       if (course.docId) {
         await updateDoc(doc(db, 'Courses', course.docId), {
@@ -445,3 +440,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
+export default withRouteCourse(Flashcards);

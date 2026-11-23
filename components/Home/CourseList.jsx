@@ -4,6 +4,7 @@ import { getBannerImage } from '../../constant/Options';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
+import { courseRouteParams } from '../../config/courseStore';
 
 export default function CourseList({
   courseList,
@@ -62,7 +63,7 @@ export default function CourseList({
                 router.push({
                   pathname: '/courseView/' + item?.docId,
                   params: {
-                    courseParams: JSON.stringify(item),
+                    ...courseRouteParams(item),
                     enroll: String(enroll),
                   },
                 })

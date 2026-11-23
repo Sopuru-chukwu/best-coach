@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import React, { useContext, useMemo, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useContext, useState } from 'react';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '../../constant/Colors';
 import * as Progress from 'react-native-progress';
@@ -24,17 +24,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tapLight } from '../../config/haptics';
 import { getFriendlyErrorMessage } from '../../config/errorMessages';
+import { withRouteCourse } from '../../components/Shared/withRouteCourse';
+import { updateCachedCourse } from '../../config/courseStore';
 
-export default function Quiz() {
-  const { courseParams } = useLocalSearchParams();
-  const initialCourse = useMemo(() => {
-    try {
-      const raw = Array.isArray(courseParams) ? courseParams[0] : courseParams;
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }, [courseParams]);
+function Quiz({ course: initialCourse }) {
 
   const [course, setCourse] = useState(initialCourse);
   const quiz = Array.isArray(course?.quiz) ? course.quiz : [];
@@ -82,6 +75,7 @@ export default function Quiz() {
 
       const updatedCourse = { ...course, quiz: freshQuestions };
       setCourse(updatedCourse);
+      updateCachedCourse(course.docId, { quiz: freshQuestions });
       setCurrentPage(0);
       setSelectedOption(null);
       setResult({});
@@ -109,6 +103,7 @@ export default function Quiz() {
         await updateDoc(doc(db, 'Courses', course.docId), {
           quizResult: result,
         });
+        updateCachedCourse(course.docId, { quizResult: result });
       }
       await recordStudyActivity(userDetail, setUserDetail);
     } catch (e) {
@@ -121,7 +116,7 @@ export default function Quiz() {
           quizResultParam: JSON.stringify(result),
           courseTitle: course?.courseTitle || '',
           level: course?.level || 'Beginner',
-          courseParams: JSON.stringify(course),
+          courseId: course?.docId || '',
         },
       });
     }
@@ -301,3 +296,5 @@ export default function Quiz() {
     </ScrollView>
   );
 }
+
+export default withRouteCourse(Quiz);

@@ -5,6 +5,16 @@ import {
   buildCoachLessonContext,
   buildSyllabusPrompt,
 } from '../constant/Prompts';
+import {
+  extractCourses,
+  normalizeDiagnosticQuestion,
+  normalizeFeynmanGrade,
+  normalizeFlashcard,
+  normalizeLessonSection,
+  normalizeList,
+  normalizeQuizQuestion,
+  pickArray,
+} from './aiValidation';
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const FAST_MODEL_ORDER = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
@@ -301,6 +311,26 @@ async function callGemini({
   throw lastError || new Error('Gemini API request failed. Please try again.');
 }
 
+/**
+ * Call Gemini for JSON, parse it, and run it through `normalize`. If the reply
+ * isn't valid JSON or nothing usable survives validation, ask once more before
+ * giving up — a second sample usually comes back well-formed.
+ */
+async function callGeminiJson(callOptions, normalize, emptyMessage) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const raw = await callGemini({ ...callOptions, jsonMode: true });
+    try {
+      const result = normalize(JSON.parse(extractJsonText(raw)));
+      const usable = Array.isArray(result) ? result.length > 0 : Boolean(result);
+      if (usable) return result;
+      console.warn(`AI reply failed validation (attempt ${attempt + 1}).`);
+    } catch {
+      console.warn(`AI reply was not valid JSON (attempt ${attempt + 1}).`);
+    }
+  }
+  throw new Error(emptyMessage);
+}
+
 export async function generateTopics(prompt, attachments = []) {
   return callGemini({
     prompt,
@@ -329,14 +359,17 @@ export async function generateCourseSyllabus({
     hasAttachment: attachments.length > 0,
     diagnosticSummary,
   });
-  return callGemini({
-    prompt,
-    attachments,
-    maxOutputTokens: 3072,
-    timeoutMs: 65000,
-    jsonMode: true,
-    depth: 'fast',
-  });
+  return callGeminiJson(
+    {
+      prompt,
+      attachments,
+      maxOutputTokens: 3072,
+      timeoutMs: 65000,
+      depth: 'fast',
+    },
+    extractCourses,
+    'We had trouble building your course outline. Please try again.'
+  );
 }
 
 export async function generateChapterLesson({
@@ -360,27 +393,17 @@ export async function generateChapterLesson({
     sourceNotes,
   });
 
-  const rawText = await callGemini({
-    prompt,
-    maxOutputTokens: 6144,
-    timeoutMs: 75000,
-    jsonMode: true,
-    depth: 'deep',
-    preferredModels: DEEP_MODEL_ORDER,
-  });
-
-  const parsed = JSON.parse(extractJsonText(rawText));
-  const content = Array.isArray(parsed?.content)
-    ? parsed.content
-    : Array.isArray(parsed)
-      ? parsed
-      : [];
-
-  if (!content.length) {
-    throw new Error('Coach returned an empty chapter lesson. Please retry.');
-  }
-
-  return content;
+  return callGeminiJson(
+    {
+      prompt,
+      maxOutputTokens: 6144,
+      timeoutMs: 75000,
+      depth: 'deep',
+      preferredModels: DEEP_MODEL_ORDER,
+    },
+    (parsed) => normalizeList(pickArray(parsed, 'content'), normalizeLessonSection, 8),
+    'Coach returned an empty chapter lesson. Please retry.'
+  );
 }
 
 export async function askCoach({
@@ -450,25 +473,11 @@ export async function generateMoreQuizQuestions({
     'Each item must have: "question", "options" (4 distinct choices), "correctAns" (matching one option verbatim), and "explanation" (1-2 sentences explaining why).\n' +
     'Output valid JSON ONLY: { "quiz": [ { "question": "...", "options": ["..."], "correctAns": "...", "explanation": "..." } ] }';
 
-  const raw = await callGemini({
-    prompt,
-    maxOutputTokens: 2048,
-    timeoutMs: 45000,
-    jsonMode: true,
-    depth: 'fast',
-  });
-
-  const parsed = JSON.parse(extractJsonText(raw));
-  const quiz = Array.isArray(parsed?.quiz)
-    ? parsed.quiz
-    : Array.isArray(parsed)
-      ? parsed
-      : [];
-
-  if (!quiz.length) {
-    throw new Error('Could not generate new quiz questions. Please try again.');
-  }
-  return quiz;
+  return callGeminiJson(
+    { prompt, maxOutputTokens: 2048, timeoutMs: 45000, depth: 'fast' },
+    (parsed) => normalizeList(pickArray(parsed, 'quiz'), normalizeQuizQuestion, 10),
+    'Could not generate new quiz questions. Please try again.'
+  );
 }
 
 export async function generateQuizRemediation({
@@ -518,25 +527,11 @@ export async function generateMoreFlashcards({
     'Each card has "front" (concise prompt/question) and "back" (clear, memorable answer).\n' +
     'Output valid JSON ONLY: { "flashcards": [ { "front": "...", "back": "..." } ] }';
 
-  const raw = await callGemini({
-    prompt,
-    maxOutputTokens: 2048,
-    timeoutMs: 45000,
-    jsonMode: true,
-    depth: 'fast',
-  });
-
-  const parsed = JSON.parse(extractJsonText(raw));
-  const flashcards = Array.isArray(parsed?.flashcards)
-    ? parsed.flashcards
-    : Array.isArray(parsed)
-      ? parsed
-      : [];
-
-  if (!flashcards.length) {
-    throw new Error('Could not generate new flashcards. Please try again.');
-  }
-  return flashcards;
+  return callGeminiJson(
+    { prompt, maxOutputTokens: 2048, timeoutMs: 45000, depth: 'fast' },
+    (parsed) => normalizeList(pickArray(parsed, 'flashcards'), normalizeFlashcard, 12),
+    'Could not generate new flashcards. Please try again.'
+  );
 }
 
 export async function generateCourseCheatSheet({
@@ -584,24 +579,11 @@ export async function generateDiagnosticQuiz({ topic }) {
     'Each question must have: "question", "options" (4 concise choices), "correctAns" (matching one option verbatim), and "difficulty" ("Beginner" | "Intermediate" | "Advanced").\n' +
     'Output valid JSON ONLY: { "questions": [ { "question": "...", "options": ["..."], "correctAns": "...", "difficulty": "Beginner" } ] }';
 
-  const raw = await callGemini({
-    prompt,
-    maxOutputTokens: 1200,
-    timeoutMs: 30000,
-    jsonMode: true,
-    depth: 'fast',
-  });
-
-  const parsed = JSON.parse(extractJsonText(raw));
-  const questions = Array.isArray(parsed?.questions)
-    ? parsed.questions
-    : Array.isArray(parsed)
-      ? parsed
-      : [];
-  if (!questions.length) {
-    throw new Error('Could not generate diagnostic questions.');
-  }
-  return questions.slice(0, 3);
+  return callGeminiJson(
+    { prompt, maxOutputTokens: 1200, timeoutMs: 30000, depth: 'fast' },
+    (parsed) => normalizeList(pickArray(parsed, 'questions'), normalizeDiagnosticQuestion, 3),
+    'Could not generate diagnostic questions.'
+  );
 }
 
 export async function gradeFeynmanExplanation({
@@ -625,23 +607,11 @@ export async function gradeFeynmanExplanation({
     '- "gaps": array of 1-3 missing pieces or inaccuracies to tighten up\n' +
     '- "improvedExplanation": a crisp, clear model explanation in 3-4 sentences showing how to explain it cleanly';
 
-  const raw = await callGemini({
-    prompt,
-    maxOutputTokens: 1200,
-    timeoutMs: 35000,
-    jsonMode: true,
-    depth: 'fast',
-    temperature: 0.4,
-  });
-
-  const parsed = JSON.parse(extractJsonText(raw));
-  return {
-    score: Math.max(0, Math.min(100, Number(parsed?.score) || 0)),
-    verdict: parsed?.verdict || 'Good effort!',
-    strengths: Array.isArray(parsed?.strengths) ? parsed.strengths : [],
-    gaps: Array.isArray(parsed?.gaps) ? parsed.gaps : [],
-    improvedExplanation: parsed?.improvedExplanation || '',
-  };
+  return callGeminiJson(
+    { prompt, maxOutputTokens: 1200, timeoutMs: 35000, depth: 'fast', temperature: 0.4 },
+    normalizeFeynmanGrade,
+    'Could not grade your explanation right now. Please try again.'
+  );
 }
 
 // Backward-compatible exports

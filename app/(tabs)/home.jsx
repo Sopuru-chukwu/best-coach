@@ -1,85 +1,48 @@
 import { View, Text, FlatList, Image, Alert, TouchableOpacity } from "react-native";
-import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Header from "../../components/Home/header";
 import NoCourse from "../../components/Home/NoCourse";
 import { useTheme } from "../../context/ThemeContext";
 import { db } from "./../../config/firebaseConfig";
-import { UserDetailContext } from "../../context/UserDetailContext";
-import { collection, getDocs, query, where, doc, deleteDoc, setDoc } from "firebase/firestore";
+import { doc, deleteDoc, setDoc } from "firebase/firestore";
 import CourseList from "../../components/Home/CourseList";
 import PracticeSection from "../../components/Home/PracticeSection";
 import CourseProgress from "../../components/Home/CourseProgress";
 import { Snackbar } from "react-native-paper";
-import { loadCachedCourses, saveCachedCourses } from "../../config/offlineCache";
+import { useMyCourses } from "../../hooks/useMyCourses";
+import { rememberCourse } from "../../config/courseStore";
 import { CourseCardSkeleton } from "../../components/Shared/SkeletonLoader";
 import { getDueCards } from "../../config/spacedRepetition";
 import { useTutorial } from "../../context/TutorialContext";
 import CoachMarkTour from "../../components/Shared/CoachMarkTour";
 
-const getCreatedMillis = (createdOn) => {
-  if (!createdOn) return 0;
-  if (typeof createdOn?.toMillis === "function") return createdOn.toMillis();
-  if (typeof createdOn?.seconds === "number") return createdOn.seconds * 1000;
-  const parsed = new Date(createdOn).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
-
 export default function Home() {
-  const { userDetail } = useContext(UserDetailContext);
   const { colors, isDark } = useTheme();
   const { shouldShow, markSeen, skipAllTours } = useTutorial();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [courseList, setCourseList] = useState([]);
   const [dueCards, setDueCards] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [deletedCourse, setDeletedCourse] = useState(null);
   const undoTimerRef = useRef(null);
 
-  const GetCourseList = useCallback(async () => {
-    if (!userDetail?.email) return;
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, "Courses"),
-        where("createdBy", "==", userDetail.email)
-      );
-      const querySnapshot = await getDocs(q);
-      const courses = [];
-      querySnapshot.forEach((docItem) => {
-        courses.push({ ...docItem.data(), docId: docItem.id });
-      });
-      courses.sort((a, b) => getCreatedMillis(b.createdOn) - getCreatedMillis(a.createdOn));
-      setCourseList(courses);
-      saveCachedCourses(userDetail.email, courses);
+  const {
+    courses: courseList,
+    setCourses: setCourseList,
+    loading,
+    hasLoaded,
+    reload: GetCourseList,
+  } = useMyCourses({
+    onLoaded: (courses) => {
       getDueCards(courses).then(setDueCards).catch(() => {});
-    } catch (error) {
-      console.error("Error fetching courses:", error);
-      const cached = await loadCachedCourses(userDetail.email);
-      if (cached.length > 0) {
-        setCourseList(cached);
-        getDueCards(cached).then(setDueCards).catch(() => {});
-      } else {
-        Alert.alert("Offline", "Could not load your courses. Check your connection.");
-      }
-    } finally {
-      setLoading(false);
-      setHasLoaded(true);
-    }
-  }, [userDetail?.email]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (userDetail?.email) {
-        GetCourseList();
-      }
-    }, [userDetail?.email, GetCourseList])
-  );
+    },
+    onError: () => {
+      Alert.alert("Offline", "Could not load your courses. Check your connection.");
+    },
+  });
 
   useEffect(() => {
     return () => {
@@ -117,6 +80,7 @@ export default function Home() {
     try {
       const courseRef = doc(db, "Courses", deletedCourse.docId);
       await setDoc(courseRef, deletedCourse);
+      rememberCourse(deletedCourse);
       setCourseList((prev) => [deletedCourse, ...prev]);
       setDeletedCourse(null);
     } catch (err) {

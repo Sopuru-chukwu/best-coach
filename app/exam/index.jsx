@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -21,6 +21,8 @@ import { gradeFeynmanExplanation } from '../../config/AiModel';
 import { recordStudyActivity } from '../../config/learningStats';
 import { notifySuccess, tapLight, tapSelection } from '../../config/haptics';
 import { getFriendlyErrorMessage } from '../../config/errorMessages';
+import { withRouteCourse } from '../../components/Shared/withRouteCourse';
+import { updateCachedCourse } from '../../config/courseStore';
 
 function formatSeconds(totalSec) {
   const m = Math.floor(totalSec / 60);
@@ -28,21 +30,12 @@ function formatSeconds(totalSec) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export default function ExamScreen() {
-  const { courseParams } = useLocalSearchParams();
+function ExamScreen({ course }) {
   const { colors } = useTheme();
   const { userDetail, setUserDetail } = useContext(UserDetailContext);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const course = useMemo(() => {
-    try {
-      const raw = Array.isArray(courseParams) ? courseParams[0] : courseParams;
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }, [courseParams]);
 
   const [mode, setMode] = useState('exam'); // 'exam' | 'feynman'
 
@@ -95,6 +88,7 @@ export default function ExamScreen() {
         await updateDoc(doc(db, 'Courses', course.docId), {
           quizResult: resultMap,
         });
+        updateCachedCourse(course.docId, { quizResult: resultMap });
       }
       await recordStudyActivity(userDetail, setUserDetail);
     } catch (err) {
@@ -107,7 +101,7 @@ export default function ExamScreen() {
           quizResultParam: JSON.stringify(resultMap),
           courseTitle: course?.courseTitle || '',
           level: course?.level || 'Beginner',
-          courseParams: JSON.stringify(course),
+          courseId: course?.docId || '',
         },
       });
     }
@@ -576,3 +570,5 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+export default withRouteCourse(ExamScreen);

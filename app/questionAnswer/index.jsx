@@ -1,6 +1,6 @@
 import { View, Text, Image, StyleSheet, ScrollView, Pressable } from 'react-native';
-import React, { useMemo, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import Colors from './../../constant/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { arrayUnion, doc, updateDoc } from 'firebase/firestore';
@@ -8,17 +8,10 @@ import { db } from '../../config/firebaseConfig';
 import AskCoachModal from '../../components/ChapterView/AskCoachModal';
 import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { updateCachedCourse } from '../../config/courseStore';
+import { withRouteCourse } from '../../components/Shared/withRouteCourse';
 
-export default function QuestionAnswer() {
-  const { courseParams } = useLocalSearchParams();
-  const course = useMemo(() => {
-    try {
-      const raw = Array.isArray(courseParams) ? courseParams[0] : courseParams;
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }, [courseParams]);
+function QuestionAnswer({ course }) {
 
   const qaList = Array.isArray(course?.qa) ? course.qa : [];
   const [selectedQuestion, setSelectedQuestion] = useState(null);
@@ -35,6 +28,9 @@ export default function QuestionAnswer() {
       updateDoc(doc(db, 'Courses', course.docId), {
         reviewedQa: arrayUnion(index),
       }).catch(() => {});
+      updateCachedCourse(course.docId, (prev) => ({
+        reviewedQa: [...new Set([...(prev.reviewedQa || []), index])],
+      }));
     }
   };
 
@@ -179,3 +175,5 @@ const styles = StyleSheet.create({
     color: Colors.PRIMARY,
   },
 });
+
+export default withRouteCourse(QuestionAnswer);
