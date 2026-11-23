@@ -38,7 +38,6 @@ export default {
       typedRoutes: true
     },
     extra: {
-      geminiApiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY,
       geminiModel: process.env.EXPO_PUBLIC_GEMINI_MODEL || "gemini-3.5-flash-lite",
       aiProxyUrl: process.env.EXPO_PUBLIC_AI_PROXY_URL || "",
       eas: {
